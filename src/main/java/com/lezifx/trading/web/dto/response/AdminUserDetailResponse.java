@@ -1,0 +1,35 @@
+package com.lezifx.trading.web.dto.response;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.UUID;
+
+@Data @Builder @NoArgsConstructor @AllArgsConstructor
+public class AdminUserDetailResponse {
+    private UUID id;
+    private UUID tenantId;
+    private String email;
+    private String fullName;
+    private String phoneNumber;
+    private String role;
+    private String status;
+    private String kycStatus;
+    private boolean isMarketer;
+    private BigDecimal liveBalance;
+    private BigDecimal demoBalance;
+    private Instant createdAt;
+    private Instant lastLoginAt;
+    private long totalTrades;
+    private long wins;
+    private long losses;
+    private BigDecimal winRate;
+    private BigDecimal totalStaked;
+    private BigDecimal totalProfit;
+    private BigDecimal totalDeposited;
+    private BigDecimal totalWithdrawn;
+}

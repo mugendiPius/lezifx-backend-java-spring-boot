@@ -1,0 +1,28 @@
+// -------------------------------------------------------
+// SECURITY CONFIG PATCH — apply to your SecurityConfig.java
+// -------------------------------------------------------
+// Find the line that looks like:
+//
+//   .requestMatchers("/api/v1/mpesa/c2b/callback").permitAll()
+//
+// Replace it with:
+//
+//   .requestMatchers("/api/v1/mpesa/**").permitAll()
+//
+// OR, if you use a varargs form like:
+//   .requestMatchers(
+//       "/api/v1/auth/**",
+//       "/api/v1/mpesa/c2b/callback"
+//   ).permitAll()
+//
+// Add the remaining paths:
+//   .requestMatchers(
+//       "/api/v1/auth/**",
+//       "/api/v1/mpesa/**"
+//   ).permitAll()
+//
+// The wildcard "/api/v1/mpesa/**" covers:
+//   /api/v1/mpesa/c2b/callback
+//   /api/v1/mpesa/b2c/result
+//   /api/v1/mpesa/b2c/timeout
+// -------------------------------------------------------

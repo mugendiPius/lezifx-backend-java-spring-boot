@@ -1,0 +1,26 @@
+// -------------------------------------------------------
+// DEPOSIT SERVICE PATCH — apply to your DepositService.java
+// -------------------------------------------------------
+//
+// 1. Add field (use @Lazy to avoid circular dependency):
+//
+//   @Lazy
+//   private final C2BService c2bService;
+//
+// 2. After depositRequestRepository.save(deposit) in
+//    initiateDeposit(), add:
+//
+//   try {
+//       c2bService.initiateStk(deposit.getId());
+//   } catch (Exception e) {
+//       log.warn("STK push failed for deposit {}: {}",
+//                deposit.getId(), e.getMessage());
+//       // Don't fail deposit initiation — STK is best-effort
+//   }
+//
+// NOTE: The @Lazy annotation on C2BService prevents the
+// circular dependency:
+//   DepositService → C2BService → DepositRequestRepository
+//   DepositService → DepositRequestRepository
+// Spring resolves the cycle by proxy-lazily injecting C2BService.
+// -------------------------------------------------------

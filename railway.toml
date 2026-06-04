@@ -1,0 +1,37 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# railway.toml — LeziFx Trading Backend
+# ══════════════════════════════════════════════════════════════════════════════
+
+[build]
+builder = "NIXPACKS"
+# Tell Nixpacks to use the Maven wrapper to produce the fat JAR
+buildCommand = "./mvnw clean package -DskipTests -q"
+
+[deploy]
+# Run the fat JAR directly — faster startup than spring-boot:run
+startCommand = "java -Xmx400m -Xms200m -XX:+UseContainerSupport -jar target/lezifx-trading-0.0.1-SNAPSHOT.jar"
+healthcheckPath = "/actuator/health"
+healthcheckTimeout = 60
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+# ── Environment variable groups (set these in Railway dashboard) ─────────────
+# These are documented here for reference — Railway reads them from the
+# service Variables tab, not from this file.
+#
+# REQUIRED (app will not start without these):
+#   DATABASE_URL              — auto-injected by Railway PostgreSQL plugin
+#   JWT_SECRET                — openssl rand -base64 64
+#   ENCRYPTION_KEY            — openssl rand -base64 32  (exactly 32 bytes after decode)
+#   SUPER_ADMIN_EMAIL         — first superadmin login email
+#   SUPER_ADMIN_PASSWORD      — strong password, min 12 chars
+#   CALLBACK_BASE_URL         — https://<your-railway-app>.up.railway.app
+#   FRONTEND_URL              — https://<your-render-app>.onrender.com
+#
+# OPTIONAL (features degrade gracefully without these):
+#   CLOUDINARY_CLOUD_NAME
+#   CLOUDINARY_API_KEY
+#   CLOUDINARY_API_SECRET
+#   DARAJA_CONSUMER_KEY
+#   DARAJA_CONSUMER_SECRET
+#   MAIL_HOST / MAIL_USERNAME / MAIL_PASSWORD
