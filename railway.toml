@@ -5,7 +5,7 @@
 [build]
 builder = "NIXPACKS"
 # Tell Nixpacks to use the Maven wrapper to produce the fat JAR
-buildCommand = "./mvnw clean package -DskipTests -q"
+buildCommand = "chmod +x mvnw && ./mvnw clean package -DskipTests -q"
 
 [deploy]
 # Run the fat JAR directly — faster startup than spring-boot:run
