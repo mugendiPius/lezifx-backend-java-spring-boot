@@ -1,16 +1,8 @@
-# ══════════════════════════════════════════════════════════════════════════════
-# application.yml — LeziFx Trading Platform
-# All secrets come from environment variables. No hardcoded credentials.
-# ══════════════════════════════════════════════════════════════════════════════
-
 spring:
   application:
     name: lezifx-trading
 
-  # ── Database ────────────────────────────────────────────────────────────────
   datasource:
-    # Railway injects DATABASE_URL as a full JDBC URL automatically when you
-    # add a PostgreSQL plugin. The fallback is for local dev only.
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/lezifx_db}
     username: ${DATABASE_USERNAME:postgres}
     password: ${DATABASE_PASSWORD:}
@@ -21,16 +13,13 @@ spring:
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000
-      # Railway PostgreSQL requires SSL — disable cert validation for managed DBs
       data-source-properties:
         ssl: true
         sslmode: require
 
-  # ── JPA ─────────────────────────────────────────────────────────────────────
   jpa:
     hibernate:
-      ddl-auto: none
-
+      ddl-auto: update
     show-sql: false
     open-in-view: false
     properties:
@@ -42,15 +31,9 @@ spring:
         jdbc:
           batch_size: 50
 
-  # ── Flyway ──────────────────────────────────────────────────────────────────
   flyway:
-    enabled: true
-    locations: classpath:db/migration
-    baseline-on-migrate: true
-    validate-on-migrate: false
-    baseline-version: 0
+    enabled: false
 
-  # ── Mail (optional — only needed if you send transactional email) ────────────
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:587}
@@ -63,58 +46,44 @@ spring:
           starttls:
             enable: true
 
-# ── Server ──────────────────────────────────────────────────────────────────
 server:
   port: ${PORT:8080}
-  # Forward headers from Railway's reverse proxy so HTTPS URLs are built correctly
   forward-headers-strategy: framework
   tomcat:
-    # Railway WebSocket keep-alive — must exceed Railway's 25s proxy timeout
     connection-timeout: 30s
     keep-alive-timeout: 30s
 
-# ── JWT ─────────────────────────────────────────────────────────────────────
 jwt:
   secret: ${JWT_SECRET}
-  access-token-expiry: 900       # 15 minutes
-  refresh-token-expiry: 604800   # 7 days
+  access-token-expiry: 900
+  refresh-token-expiry: 604800
 
-# ── Super Admin Bootstrap ───────────────────────────────────────────────────
 superadmin:
   bootstrap-email: ${SUPER_ADMIN_EMAIL}
   bootstrap-password: ${SUPER_ADMIN_PASSWORD}
 
-# ── Encryption (AES-256 for Daraja credentials at rest) ─────────────────────
 encryption:
   key: ${ENCRYPTION_KEY}
 
-# ── Platform ─────────────────────────────────────────────────────────────────
 platform:
   social-feed:
     min-real-trades-threshold: 5
     simulated-interval-ms: 8000
 
-# ── Daraja / M-Pesa ──────────────────────────────────────────────────────────
 daraja:
   base-url: ${DARAJA_BASE_URL:https://api.safaricom.co.ke}
   consumer-key: ${DARAJA_CONSUMER_KEY:}
   consumer-secret: ${DARAJA_CONSUMER_SECRET:}
-  # Must be the public HTTPS URL Railway gives you, e.g.:
-  # https://lezifx-trading-production.up.railway.app
-  callback-base-url: ${CALLBACK_BASE_URL}
+  callback-base-url: ${CALLBACK_BASE_URL:https://localhost:8080}
 
-# ── Cloudinary ───────────────────────────────────────────────────────────────
 cloudinary:
   cloud-name: ${CLOUDINARY_CLOUD_NAME:}
   api-key: ${CLOUDINARY_API_KEY:}
   api-secret: ${CLOUDINARY_API_SECRET:}
 
-# ── CORS ─────────────────────────────────────────────────────────────────────
-# Allowed frontend origins — set FRONTEND_URL on Railway to your Render URL
 cors:
   allowed-origins: ${FRONTEND_URL:http://localhost:5173}
 
-# ── Actuator ────────────────────────────────────────────────────────────────
 management:
   endpoints:
     web:
@@ -129,14 +98,11 @@ management:
     readinessstate:
       enabled: true
 
-# ── Logging ──────────────────────────────────────────────────────────────────
 logging:
   level:
     com.lezifx.trading: INFO
     org.springframework.web: WARN
     org.hibernate.SQL: WARN
-    # Audit trail — keep at INFO so every action is logged
     com.lezifx.trading.infrastructure.audit: INFO
   pattern:
-    # Structured log lines that are easy to grep on Railway
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{tenantId}] [%X{userId}] %logger{36} - %msg%n"

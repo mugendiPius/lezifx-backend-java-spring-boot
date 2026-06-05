@@ -25,7 +25,7 @@ import java.util.UUID;
 public class SuperAdminBootstrapService {
 
     private static final UUID MASTER_TENANT_ID =
-        UUID.fromString("00000000-0000-0000-0000-000000000001");
+            UUID.fromString("00000000-0000-0000-0000-000000000001");
 
     @Value("${superadmin.bootstrap-email:}")
     private String bootstrapEmail;
@@ -44,40 +44,45 @@ public class SuperAdminBootstrapService {
         if (bootstrapEmail == null || bootstrapEmail.isBlank()) return;
         if (bootstrapPassword == null || bootstrapPassword.isBlank()) return;
 
-        if (userRepository.findByTenantIdAndEmail(MASTER_TENANT_ID, bootstrapEmail).isPresent()) {
-            return;
+        try {
+            if (userRepository.findByTenantIdAndEmail(MASTER_TENANT_ID, bootstrapEmail).isPresent()) {
+                return;
+            }
+
+            var masterTenant = tenantRepository.findById(MASTER_TENANT_ID).orElse(null);
+            if (masterTenant == null) {
+                log.warn("Master tenant not found — skipping SUPER_ADMIN bootstrap. Will retry on next startup.");
+                return;
+            }
+
+            User admin = User.builder()
+                    .tenant(masterTenant)
+                    .email(bootstrapEmail)
+                    .passwordHash(passwordEncoder.encode(bootstrapPassword))
+                    .fullName("Super Administrator")
+                    .role(UserRole.SUPER_ADMIN)
+                    .status(UserStatus.ACTIVE)
+                    .isMarketer(false)
+                    .marketerBalance(BigDecimal.ZERO)
+                    .kycStatus(KycStatus.NONE)
+                    .build();
+
+            admin = userRepository.save(admin);
+
+            Wallet wallet = Wallet.builder()
+                    .user(admin)
+                    .tenant(masterTenant)
+                    .liveBalance(BigDecimal.ZERO)
+                    .demoBalance(BigDecimal.ZERO)
+                    .version(0L)
+                    .build();
+
+            walletRepository.save(wallet);
+
+            log.info("SUPER_ADMIN bootstrapped: {}", bootstrapEmail);
+
+        } catch (Exception e) {
+            log.warn("SUPER_ADMIN bootstrap skipped — tables not ready yet: {}. Will succeed on next startup.", e.getMessage());
         }
-
-        var masterTenant = tenantRepository.findById(MASTER_TENANT_ID).orElse(null);
-        if (masterTenant == null) {
-            log.error("Master tenant not found — cannot bootstrap SUPER_ADMIN. Run migrations first.");
-            return;
-        }
-
-        User admin = User.builder()
-            .tenant(masterTenant)
-            .email(bootstrapEmail)
-            .passwordHash(passwordEncoder.encode(bootstrapPassword))
-            .fullName("Super Administrator")
-            .role(UserRole.SUPER_ADMIN)
-            .status(UserStatus.ACTIVE)
-            .isMarketer(false)
-            .marketerBalance(BigDecimal.ZERO)
-            .kycStatus(KycStatus.NONE)
-            .build();
-
-        admin = userRepository.save(admin);
-
-        Wallet wallet = Wallet.builder()
-            .user(admin)
-            .tenant(masterTenant)
-            .liveBalance(BigDecimal.ZERO)
-            .demoBalance(BigDecimal.ZERO)
-            .version(0L)
-            .build();
-
-        walletRepository.save(wallet);
-
-        log.info("SUPER_ADMIN bootstrapped: {}", bootstrapEmail);
     }
 }
