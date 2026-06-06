@@ -60,10 +60,10 @@ public class AuthService {
             throw new BusinessException("ACCOUNT_SUSPENDED", "Your account is not active");
         }
 
-        if (user.getRole() == UserRole.SUPER_ADMIN) {
-            throw new BusinessException("USE_SUPERADMIN_ENDPOINT",
-                    "Super admin accounts must log in via /api/v1/superadmin/auth/login");
-        }
+//        if (user.getRole() == UserRole.SUPER_ADMIN) {
+//            throw new BusinessException("USE_SUPERADMIN_ENDPOINT",
+//                    "Super admin accounts must log in via /api/v1/superadmin/auth/login");
+//        }
 
         if (!passwordEncoder.matches(password, user.getPasswordHash())) {
             log.warn("Login failed - wrong password: email={}", email);
