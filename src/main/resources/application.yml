@@ -93,6 +93,8 @@ management:
     health:
       show-details: never
   health:
+    mail:
+      enabled: false
     livenessstate:
       enabled: true
     readinessstate:
