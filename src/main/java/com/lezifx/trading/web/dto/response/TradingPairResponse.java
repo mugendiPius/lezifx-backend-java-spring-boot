@@ -21,6 +21,7 @@ public class TradingPairResponse {
     private String quoteAsset;
     private String category;
     private BigDecimal basePrice;
+    private boolean enabled;          // ← add this
     private BigDecimal minStake;
     private BigDecimal maxStake;
     private int[] allowedDurations;
