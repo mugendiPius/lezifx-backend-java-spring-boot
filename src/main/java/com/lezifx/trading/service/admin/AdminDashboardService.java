@@ -31,31 +31,35 @@ public class AdminDashboardService {
     @Transactional(readOnly = true)
     public AdminDashboardResponse getDashboard(UUID tenantId) {
         var tenant = tenantRepository.findById(tenantId)
-                .orElseThrow(() -> new RuntimeException("Tenant not found: " + tenantId));
+            .orElseThrow(() -> new RuntimeException("Tenant not found: " + tenantId));
 
-        // ── House balance ───────────────────────────────────────────────
         BigDecimal houseBalance = tenant.getHouseBalance() != null
-                ? tenant.getHouseBalance() : BigDecimal.ZERO;
+            ? tenant.getHouseBalance() : BigDecimal.ZERO;
         BigDecimal floorBalance = tenant.getFloorBalance() != null
-                ? tenant.getFloorBalance() : BigDecimal.ZERO;
+            ? tenant.getFloorBalance() : BigDecimal.ZERO;
         BigDecimal houseRatio = floorBalance.compareTo(BigDecimal.ZERO) > 0
-                ? houseBalance.divide(floorBalance, 4, RoundingMode.HALF_UP)
-                : BigDecimal.valueOf(999);
+            ? houseBalance.divide(floorBalance, 4, RoundingMode.HALF_UP)
+            : BigDecimal.valueOf(999);
 
-        // ── Time boundaries ─────────────────────────────────────────────
         Instant startOfDay  = Instant.now().truncatedTo(ChronoUnit.DAYS);
         Instant startOfWeek = Instant.now().minus(7, ChronoUnit.DAYS);
 
-        // ── User stats ──────────────────────────────────────────────────
-        long totalUsers       = userRepository.countByTenantId(tenantId);
-        long newSignupsToday  = userRepository.countByTenantIdAndCreatedAtAfter(tenantId, startOfDay);
-        long newSignupsWeek   = userRepository.countByTenantIdAndCreatedAtAfter(tenantId, startOfWeek);
+        // User stats
+        long totalUsers      = userRepository.countByTenantId(tenantId);
+        long newSignupsToday = userRepository.countByTenantIdAndCreatedAtAfter(tenantId, startOfDay);
+        long newSignupsWeek  = userRepository.countByTenantIdAndCreatedAtAfter(tenantId, startOfWeek);
 
-        // ── Trade stats ─────────────────────────────────────────────────
+        // Trade stats
         long activeStakersNow = tradeSessionRepository
-                .countByTenantIdAndStatusAndIsMarketerTradeFalse(tenantId, TradeSessionStatus.ACTIVE);
+            .countByTenantIdAndStatusAndIsMarketerTradeFalse(tenantId, TradeSessionStatus.ACTIVE);
 
-        // ── Financial stats ─────────────────────────────────────────────
+        long activeStakersToday = tradeSessionRepository
+            .countSettledRealTradesBetween(tenantId, startOfDay, Instant.now());
+
+        long activeStakersWeek = tradeSessionRepository
+            .countSettledRealTradesBetween(tenantId, startOfWeek, Instant.now());
+
+        // Financial stats — all-time
         BigDecimal totalDeposited = walletTransactionRepository.sumDepositsForTenant(tenantId);
         if (totalDeposited == null) totalDeposited = BigDecimal.ZERO;
 
@@ -66,33 +70,50 @@ public class AdminDashboardService {
         BigDecimal grossProfit = tradeSessionRepository.calculateGrossProfitForTenant(tenantId);
         if (grossProfit == null) grossProfit = BigDecimal.ZERO;
 
+        // Financial stats — today
+        BigDecimal totalDepositsToday = walletTransactionRepository
+            .sumDepositsForTenantSince(tenantId, startOfDay);
+        if (totalDepositsToday == null) totalDepositsToday = BigDecimal.ZERO;
+
+        BigDecimal totalWithdrawsToday = walletTransactionRepository
+            .sumWithdrawalsForTenantSince(tenantId, startOfDay);
+        if (totalWithdrawsToday == null) totalWithdrawsToday = BigDecimal.ZERO;
+
+        // Live stakes — sum of stakes in ACTIVE sessions
+        BigDecimal totalStakesLive = walletTransactionRepository
+            .sumStakesForTenantSince(tenantId, Instant.now().minus(1, ChronoUnit.HOURS));
+        if (totalStakesLive == null) totalStakesLive = BigDecimal.ZERO;
+
+        // 24h volume = deposits last 24h
+        BigDecimal totalVolume24h = walletTransactionRepository
+            .sumDepositsForTenantSince(tenantId, Instant.now().minus(1, ChronoUnit.DAYS));
+        if (totalVolume24h == null) totalVolume24h = BigDecimal.ZERO;
+
         long pendingWithdrawals = withdrawalRequestRepository
-                .countByTenantIdAndStatus(tenantId, WithdrawalStatus.PENDING);
+            .countByTenantIdAndStatus(tenantId, WithdrawalStatus.PENDING);
 
         return AdminDashboardResponse.builder()
-                // Frontend-expected fields
-                .totalUsers(totalUsers)
-                .newSignupsToday(newSignupsToday)
-                .newSignupsWeek(newSignupsWeek)
-                .activeStakersNow(activeStakersNow)
-                .activeStakersToday(0L)
-                .activeStakersWeek(0L)
-                .totalDepositsToday(BigDecimal.ZERO)
-                .totalWithdrawsToday(BigDecimal.ZERO)
-                .totalStakesLive(BigDecimal.ZERO)
-                .totalVolume24h(totalDeposited)
-                .houseBalance(houseBalance)
-                .floorBalance(floorBalance)
-                .platformMode(tenant.getPlatformMode().name())
-                .killSwitchActive(Boolean.TRUE.equals(tenant.getKillSwitchActive()))
-                .winModeRejected(false)
-                // Internal fields
-                .houseRatio(houseRatio)
-                .activeTrades(activeStakersNow)
-                .totalDeposited(totalDeposited)
-                .totalWithdrawn(totalWithdrawn)
-                .pendingWithdrawals(pendingWithdrawals)
-                .grossProfit(grossProfit)
-                .build();
+            .totalUsers(totalUsers)
+            .newSignupsToday(newSignupsToday)
+            .newSignupsWeek(newSignupsWeek)
+            .activeStakersNow(activeStakersNow)
+            .activeStakersToday(activeStakersToday)
+            .activeStakersWeek(activeStakersWeek)
+            .totalDepositsToday(totalDepositsToday)
+            .totalWithdrawsToday(totalWithdrawsToday)
+            .totalStakesLive(totalStakesLive)
+            .totalVolume24h(totalVolume24h)
+            .houseBalance(houseBalance)
+            .floorBalance(floorBalance)
+            .platformMode(tenant.getPlatformMode().name())
+            .killSwitchActive(Boolean.TRUE.equals(tenant.getKillSwitchActive()))
+            .winModeRejected(false)
+            .houseRatio(houseRatio)
+            .activeTrades(activeStakersNow)
+            .totalDeposited(totalDeposited)
+            .totalWithdrawn(totalWithdrawn)
+            .pendingWithdrawals(pendingWithdrawals)
+            .grossProfit(grossProfit)
+            .build();
     }
 }

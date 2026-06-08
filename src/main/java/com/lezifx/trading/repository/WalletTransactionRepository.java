@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -20,7 +21,7 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
 
     Page<WalletTransaction> findByTenantId(UUID tenantId, Pageable pageable);
 
-    // ── Tenant-level aggregates ──────────────────────────────────────────────
+    // ── Tenant-level aggregates ───────────────────────────────────────────────
 
     @Query("""
         SELECT COALESCE(SUM(wt.amount), 0)
@@ -52,7 +53,48 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
     """)
     BigDecimal sumStakesForTenant(@Param("tenantId") UUID tenantId);
 
-    // ── User-level paginated queries ─────────────────────────────────────────
+    // ── Date-range aggregates for dashboard ──────────────────────────────────
+
+    @Query("""
+        SELECT COALESCE(SUM(wt.amount), 0)
+        FROM WalletTransaction wt
+        WHERE wt.tenant.id = :tenantId
+          AND wt.type = 'DEPOSIT'
+          AND wt.isDemo = false
+          AND wt.isMarketerTransaction = false
+          AND wt.createdAt >= :since
+    """)
+    BigDecimal sumDepositsForTenantSince(
+        @Param("tenantId") UUID tenantId,
+        @Param("since") Instant since);
+
+    @Query("""
+        SELECT COALESCE(SUM(ABS(wt.amount)), 0)
+        FROM WalletTransaction wt
+        WHERE wt.tenant.id = :tenantId
+          AND wt.type = 'WITHDRAWAL'
+          AND wt.isDemo = false
+          AND wt.isMarketerTransaction = false
+          AND wt.createdAt >= :since
+    """)
+    BigDecimal sumWithdrawalsForTenantSince(
+        @Param("tenantId") UUID tenantId,
+        @Param("since") Instant since);
+
+    @Query("""
+        SELECT COALESCE(SUM(ABS(wt.amount)), 0)
+        FROM WalletTransaction wt
+        WHERE wt.tenant.id = :tenantId
+          AND wt.type = 'TRADE_STAKE'
+          AND wt.isDemo = false
+          AND wt.isMarketerTransaction = false
+          AND wt.createdAt >= :since
+    """)
+    BigDecimal sumStakesForTenantSince(
+        @Param("tenantId") UUID tenantId,
+        @Param("since") Instant since);
+
+    // ── User-level paginated queries ──────────────────────────────────────────
 
     @Query("""
         SELECT wt FROM WalletTransaction wt
@@ -84,7 +126,7 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
         @Param("isDemo") boolean isDemo,
         Pageable pageable);
 
-    // ── User-level aggregates ────────────────────────────────────────────────
+    // ── User-level aggregates ─────────────────────────────────────────────────
 
     @Query("""
         SELECT COALESCE(SUM(ABS(wt.amount)), 0)
