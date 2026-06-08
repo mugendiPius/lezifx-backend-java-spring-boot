@@ -1,7 +1,6 @@
 package com.lezifx.trading.config;
 
 import com.lezifx.trading.web.websocket.WebSocketAuthInterceptor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.ChannelRegistration;
@@ -18,15 +17,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final WebSocketAuthInterceptor interceptor;
 
-    @Value("${spring.data.redis.host}")
-    private String redisHost;
-
-    @Value("${spring.data.redis.port:6379}")
-    private int redisPort;
-
-    @Value("${spring.data.redis.password:}")
-    private String redisPassword;
-
     public WebSocketConfig(WebSocketAuthInterceptor interceptor) {
         this.interceptor = interceptor;
     }
@@ -42,15 +32,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
-        String passcode = (redisPassword == null || redisPassword.isBlank()) ? "" : redisPassword;
-        registry.enableStompBrokerRelay("/topic", "/queue")
-            .setRelayHost(redisHost)
-            .setRelayPort(redisPort)
-            .setClientLogin(passcode)
-            .setClientPasscode(passcode)
-            .setSystemLogin(passcode)
-            .setSystemPasscode(passcode);
-
+        registry.enableSimpleBroker("/topic", "/queue")
+            .setHeartbeatValue(new long[]{25000, 25000})
+            .setTaskScheduler(webSocketTaskScheduler());
         registry.setApplicationDestinationPrefixes("/app");
         registry.setUserDestinationPrefix("/user");
     }
