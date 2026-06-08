@@ -46,6 +46,19 @@ spring:
           starttls:
             enable: true
 
+  data:
+    redis:
+      url: ${REDIS_URL}
+      host: ${REDISHOST}
+      port: ${REDISPORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 2
+
 server:
   port: ${PORT:8080}
   forward-headers-strategy: framework

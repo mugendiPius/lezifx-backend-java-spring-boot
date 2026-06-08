@@ -34,13 +34,14 @@ public class TradeSessionService {
     private static final Set<Integer> ALLOWED_DURATIONS = Set.of(30, 60, 120, 300);
 
     private final TradeSessionRepository tradeSessionRepository;
-    private final TradingPairRepository tradingPairRepository;
-    private final TenantRepository tenantRepository;
-    private final UserRepository userRepository;
-    private final WalletService walletService;
-    private final PriceGeneratorService priceGeneratorService;
-    private final PayoutRateService payoutRateService;
-    private final HouseBalanceService houseBalanceService;
+    private final TradingPairRepository  tradingPairRepository;
+    private final TenantRepository       tenantRepository;
+    private final UserRepository         userRepository;
+    private final WalletService          walletService;
+    private final PriceGeneratorService  priceGeneratorService;
+    private final PayoutRateService      payoutRateService;
+    private final HouseBalanceService    houseBalanceService;
+    private final ActiveSessionCache     activeSessionCache;   // ← NEW
 
     public TradeSessionResponse buy(BuyTradeRequest request, UUID userId, UUID tenantId) {
         if (!ALLOWED_DURATIONS.contains(request.getDurationSeconds())) {
@@ -64,31 +65,33 @@ public class TradeSessionService {
             .orElseThrow(() -> new BusinessException("PAIR_NOT_FOUND",
                 "Trading pair not found or disabled: " + request.getPairSymbol()));
 
-        if (pair.getMinStake() != null && request.getStakeAmount().compareTo(pair.getMinStake()) < 0) {
+        if (pair.getMinStake() != null
+                && request.getStakeAmount().compareTo(pair.getMinStake()) < 0) {
             throw new BusinessException("STAKE_TOO_LOW",
                 "Minimum stake is " + pair.getMinStake());
         }
-        if (pair.getMaxStake() != null && request.getStakeAmount().compareTo(pair.getMaxStake()) > 0) {
+        if (pair.getMaxStake() != null
+                && request.getStakeAmount().compareTo(pair.getMaxStake()) > 0) {
             throw new BusinessException("STAKE_TOO_HIGH",
                 "Maximum stake is " + pair.getMaxStake());
         }
 
-        int maxConcurrent = tenant.getMaxConcurrentTrades() != null ? tenant.getMaxConcurrentTrades() : 3;
+        int maxConcurrent = tenant.getMaxConcurrentTrades() != null
+            ? tenant.getMaxConcurrentTrades() : 3;
 
-        // Count active sessions for this specific user via DB — no full list load
-        long userActiveSessions = tradeSessionRepository
+        long userActive = tradeSessionRepository
             .countByUserIdAndTenantIdAndStatus(userId, tenantId, TradeSessionStatus.ACTIVE);
-        if (userActiveSessions >= maxConcurrent) {
+        if (userActive >= maxConcurrent) {
             throw new BusinessException("MAX_CONCURRENT_TRADES",
                 "Maximum concurrent trades reached (" + maxConcurrent + ")");
         }
 
-        long allActiveSessions = tradeSessionRepository
+        long allActive = tradeSessionRepository
             .countByTenantIdAndStatusAndIsMarketerTradeFalse(tenantId, TradeSessionStatus.ACTIVE);
 
-        boolean isMarketer = Boolean.TRUE.equals(user.getIsMarketer());
-        BigDecimal entryPrice = priceGeneratorService.getCurrentPrice(tenantId, request.getPairSymbol());
-        BigDecimal houseRatio = houseBalanceService.getHouseRatio(tenantId);
+        boolean    isMarketer      = Boolean.TRUE.equals(user.getIsMarketer());
+        BigDecimal entryPrice      = priceGeneratorService.getCurrentPrice(tenantId, request.getPairSymbol());
+        BigDecimal houseRatio      = houseBalanceService.getHouseRatio(tenantId);
         BigDecimal lockedPayoutRate = payoutRateService.getPayoutRate(tenantId, request.getDurationSeconds());
 
         BigDecimal sealedExitPrice = priceGeneratorService.computeSealedExitPrice(
@@ -96,7 +99,7 @@ public class TradeSessionService {
             entryPrice,
             request.getDurationSeconds(),
             tenant.getPlatformMode(),
-            (int) allActiveSessions,
+            (int) allActive,
             houseRatio
         );
 
@@ -120,12 +123,15 @@ public class TradeSessionService {
             .build();
 
         session = tradeSessionRepository.save(session);
+
+        // ── notify cache immediately so next tick cycle sees this session ─────
+        activeSessionCache.onSessionCreated(session);
+
         return mapToResponse(session);
     }
 
     @Transactional(readOnly = true)
     public TradeSessionResponse getActiveSession(UUID userId, UUID tenantId) {
-        // Only load active sessions for this user — bounded by maxConcurrentTrades (3 default)
         return tradeSessionRepository.findByUserIdAndTenantId(userId, tenantId)
             .stream()
             .filter(s -> s.getStatus() == TradeSessionStatus.ACTIVE)
@@ -137,7 +143,6 @@ public class TradeSessionService {
     @Transactional(readOnly = true)
     public List<TradeSessionResponse> getSessionHistory(UUID userId, UUID tenantId,
                                                          int page, int size) {
-        // SQL-level pagination — never loads full history into memory
         var pageable = PageRequest.of(page, size, Sort.by("startedAt").descending());
         return tradeSessionRepository
             .findHistoryByUserIdAndTenantId(userId, tenantId, pageable)
@@ -148,7 +153,7 @@ public class TradeSessionService {
     }
 
     public TradeSessionResponse mapToResponse(TradeSession session) {
-        TradeSessionResponse.TradeSessionResponseBuilder builder = TradeSessionResponse.builder()
+        var builder = TradeSessionResponse.builder()
             .id(session.getId())
             .tenantId(session.getTenant().getId())
             .userId(session.getUser().getId())

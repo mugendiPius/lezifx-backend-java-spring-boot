@@ -25,11 +25,12 @@ import java.util.UUID;
 public class SettlementService {
 
     private final TradeSessionRepository tradeSessionRepository;
-    private final WalletService walletService;
-    private final HouseBalanceService houseBalanceService;
-    private final SocialFeedService socialFeedService;
-    private final PayoutRateService payoutRateService;
-    private final SimpMessagingTemplate messagingTemplate;
+    private final WalletService          walletService;
+    private final HouseBalanceService    houseBalanceService;
+    private final SocialFeedService      socialFeedService;
+    private final PayoutRateService      payoutRateService;
+    private final SimpMessagingTemplate  messagingTemplate;
+    private final ActiveSessionCache     activeSessionCache;
 
     @Transactional
     public void settleExpiredSessions() {
@@ -47,7 +48,6 @@ public class SettlementService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void settle(TradeSession session) {
-        // Guard: re-fetch and check status to prevent double-processing
         TradeSession fresh = tradeSessionRepository.findById(session.getId()).orElse(null);
         if (fresh == null || fresh.getStatus() != TradeSessionStatus.ACTIVE) return;
 
@@ -72,7 +72,7 @@ public class SettlementService {
             outcome = TradeOutcome.LOSS;
         }
 
-        UUID userId = fresh.getUser().getId();
+        UUID userId   = fresh.getUser().getId();
         UUID tenantId = fresh.getTenant().getId();
 
         walletService.creditSettlement(
@@ -97,6 +97,9 @@ public class SettlementService {
         fresh.setStatus(TradeSessionStatus.COMPLETED);
         tradeSessionRepository.save(fresh);
 
+        // Evict from cache immediately — next tick cycle will not process this session
+        activeSessionCache.onSessionExpired(tenantId, fresh.getPairSymbol(), fresh.getId());
+
         payoutRateService.evictRatesForTenant(tenantId);
 
         if (outcome == TradeOutcome.WIN) {
@@ -107,7 +110,6 @@ public class SettlementService {
             }
         }
 
-        // Push WS trade-result to user
         try {
             BigDecimal newBalance = walletService.getBalance(
                 userId,
@@ -125,8 +127,7 @@ public class SettlementService {
                 .build();
 
             messagingTemplate.convertAndSendToUser(
-                userId.toString(), "/queue/trade-result", event
-            );
+                userId.toString(), "/queue/trade-result", event);
         } catch (Exception e) {
             log.warn("Could not push trade result to user {}: {}", userId, e.getMessage());
         }
