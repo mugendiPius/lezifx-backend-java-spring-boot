@@ -6,13 +6,14 @@ import com.lezifx.trading.service.superadmin.TenantService;
 import com.lezifx.trading.web.dto.request.AdjustHouseBalanceRequest;
 import com.lezifx.trading.web.dto.request.CreateApiKeyRequest;
 import com.lezifx.trading.web.dto.request.CreateTenantRequest;
+import com.lezifx.trading.web.dto.request.MarketerWithdrawalConfigRequest;
 import com.lezifx.trading.web.dto.request.SetDarajaCredentialsRequest;
+import com.lezifx.trading.web.dto.request.UpdateTenantDomainsRequest;
 import com.lezifx.trading.web.dto.request.UpdateTenantSettingsRequest;
 import com.lezifx.trading.web.dto.request.UpdateTenantStatusRequest;
 import com.lezifx.trading.web.dto.response.TenantApiKeyResponse;
 import com.lezifx.trading.web.dto.response.TenantDetailResponse;
 import com.lezifx.trading.web.dto.response.TenantSummaryResponse;
-import com.lezifx.trading.web.dto.request.MarketerWithdrawalConfigRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -39,10 +40,10 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class TenantManagementController {
 
-    private final TenantService tenantService;
+    private final TenantService      tenantService;
     private final HouseBalanceService houseBalanceService;
     private final com.lezifx.trading.repository.TenantRepository tenantRepository;
-    private final AuditLogService auditLogService;
+    private final AuditLogService    auditLogService;
 
     @PostMapping
     public ResponseEntity<TenantDetailResponse> createTenant(
@@ -56,7 +57,7 @@ public class TenantManagementController {
     public ResponseEntity<Page<TenantSummaryResponse>> listTenants(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String search,
-            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(tenantService.listTenants(status, search, page, size));
     }
@@ -82,6 +83,23 @@ public class TenantManagementController {
             @AuthenticationPrincipal String adminId) {
         tenantService.updateTenantSettings(tenantId, req, adminId);
         return ResponseEntity.ok().build();
+    }
+
+    /**
+     * SUPER_ADMIN domain management — replaces entire allowed_origins for a tenant.
+     * Tenant admins use PUT /admin/platform/domains for self-service.
+     * SUPER_ADMIN uses this for emergency correction or initial setup.
+     */
+    @PutMapping("/{tenantId}/domains")
+    public ResponseEntity<Map<String, Object>> updateDomains(
+            @PathVariable UUID tenantId,
+            @RequestBody UpdateTenantDomainsRequest req,
+            @AuthenticationPrincipal String adminId) {
+        tenantService.updateAllowedOrigins(tenantId, req.getDomains(), adminId);
+        return ResponseEntity.ok(Map.of(
+                "message", "Domains updated",
+                "domains", req.getDomains()
+        ));
     }
 
     @PutMapping("/{tenantId}/daraja")

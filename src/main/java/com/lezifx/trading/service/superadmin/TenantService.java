@@ -16,6 +16,7 @@ import com.lezifx.trading.repository.WalletRepository;
 import com.lezifx.trading.service.auth.ApiKeyService;
 import com.lezifx.trading.service.mpesa.AesEncryptionService;
 import com.lezifx.trading.web.dto.request.CreateTenantRequest;
+import com.lezifx.trading.web.dto.request.MarketerWithdrawalConfigRequest;
 import com.lezifx.trading.web.dto.request.SetDarajaCredentialsRequest;
 import com.lezifx.trading.web.dto.request.UpdateTenantSettingsRequest;
 import com.lezifx.trading.web.dto.response.TenantApiKeyResponse;
@@ -34,6 +35,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -48,42 +51,59 @@ public class TenantService {
     public static final UUID MASTER_TENANT_ID =
             UUID.fromString("00000000-0000-0000-0000-000000000001");
 
-    private final TenantRepository tenantRepository;
+    private static final BigDecimal COMMISSION_RATE = BigDecimal.valueOf(0.15);
+
+    private final TenantRepository       tenantRepository;
     private final TenantApiKeyRepository tenantApiKeyRepository;
-    private final UserRepository userRepository;
-    private final WalletRepository walletRepository;
-    private final ApiKeyService apiKeyService;
-    private final AesEncryptionService aesEncryptionService;
-    private final AuditLogService auditLogService;
-    private final PasswordEncoder passwordEncoder;
+    private final UserRepository         userRepository;
+    private final WalletRepository       walletRepository;
+    private final ApiKeyService          apiKeyService;
+    private final AesEncryptionService   aesEncryptionService;
+    private final AuditLogService        auditLogService;
+    private final PasswordEncoder        passwordEncoder;
+
+    // ── Create tenant + first admin ──────────────────────────────────────────
 
     public TenantDetailResponse createTenant(CreateTenantRequest req, String createdBy) {
-        if (req.getCustomDomain() != null) {
-            tenantRepository.findByCustomDomain(req.getCustomDomain()).ifPresent(t -> {
-                throw new BusinessException("DOMAIN_TAKEN", "Custom domain already in use");
-            });
+        // Validate domains — check none are already taken by another tenant
+        if (req.getCustomDomains() != null) {
+            for (String domain : req.getCustomDomains()) {
+                String normalised = domain.toLowerCase().replaceAll("^https?://", "").replaceAll("/+$", "");
+                tenantRepository.findByAllowedOriginsContaining(normalised).ifPresent(existing -> {
+                    if (!MASTER_TENANT_ID.equals(existing.getId())) {
+                        throw new BusinessException("DOMAIN_TAKEN",
+                                "Domain '" + normalised + "' is already registered to tenant: " + existing.getBrandName());
+                    }
+                });
+            }
         }
 
-        BigDecimal floorBalance = req.getFloorBalance() != null
-                ? req.getFloorBalance() : BigDecimal.valueOf(100_000);
-        BigDecimal demoBalance = req.getDemoBalance() != null
-                ? req.getDemoBalance() : BigDecimal.valueOf(10_000);
+        BigDecimal floorBalance = req.getFloorBalance()  != null ? req.getFloorBalance()  : BigDecimal.valueOf(100_000);
+        BigDecimal demoBalance  = req.getDemoBalance()   != null ? req.getDemoBalance()   : BigDecimal.valueOf(10_000);
+
+        // Build allowed_origins from request — normalise each entry
+        String[] origins = req.getCustomDomains() == null ? new String[0]
+                : req.getCustomDomains().stream()
+                        .map(d -> d.toLowerCase().replaceAll("^https?://", "").replaceAll("/+$", ""))
+                        .filter(d -> !d.isBlank())
+                        .toArray(String[]::new);
 
         Tenant tenant = Tenant.builder()
+                .name(req.getBrandName())
                 .brandName(req.getBrandName())
                 .logoUrl(req.getLogoUrl())
                 .faviconUrl(req.getFaviconUrl())
                 .primaryColor(req.getPrimaryColor())
                 .accentColor(req.getAccentColor())
                 .supportEmail(req.getSupportEmail())
-                .customDomain(req.getCustomDomain())
+                .allowedOrigins(origins)
                 .registrationOpen(true)
                 .kycRequired(false)
                 .demoBalance(demoBalance)
-                .minDeposit(req.getMinDeposit() != null ? req.getMinDeposit() : BigDecimal.valueOf(100))
-                .maxDeposit(req.getMaxDeposit() != null ? req.getMaxDeposit() : BigDecimal.valueOf(500_000))
-                .minWithdrawal(req.getMinWithdrawal() != null ? req.getMinWithdrawal() : BigDecimal.valueOf(100))
-                .maxWithdrawal(req.getMaxWithdrawal() != null ? req.getMaxWithdrawal() : BigDecimal.valueOf(100_000))
+                .minDeposit(req.getMinDeposit()          != null ? req.getMinDeposit()          : BigDecimal.valueOf(100))
+                .maxDeposit(req.getMaxDeposit()          != null ? req.getMaxDeposit()          : BigDecimal.valueOf(500_000))
+                .minWithdrawal(req.getMinWithdrawal()    != null ? req.getMinWithdrawal()       : BigDecimal.valueOf(100))
+                .maxWithdrawal(req.getMaxWithdrawal()    != null ? req.getMaxWithdrawal()       : BigDecimal.valueOf(100_000))
                 .autoWithdrawalLimit(req.getAutoWithdrawalLimit() != null
                         ? req.getAutoWithdrawalLimit() : BigDecimal.valueOf(5_000))
                 .maxConcurrentTrades(1)
@@ -98,6 +118,7 @@ public class TenantService {
         Tenant savedTenant = tenantRepository.save(tenant);
         TenantApiKey apiKey = apiKeyService.createApiKey(savedTenant, "default");
 
+        // Create first ADMIN user for the tenant
         String fullName = (req.getAdminFullName() != null && !req.getAdminFullName().isBlank())
                 ? req.getAdminFullName() : "Administrator";
 
@@ -125,22 +146,22 @@ public class TenantService {
 
         auditLogService.record(MASTER_TENANT_ID, createdBy, "SUPER_ADMIN",
                 "CREATE_TENANT", "Tenant", savedTenant.getId(),
-                null, Map.of("brandName", req.getBrandName()), null);
+                null, Map.of("brandName", req.getBrandName(), "adminEmail", req.getAdminEmail()), null);
 
         log.info("Tenant created: {} (id={})", req.getBrandName(), savedTenant.getId());
 
-        long userCount = userRepository.countByTenantId(savedTenant.getId());
-        long activeKeys = tenantApiKeyRepository.countByTenantIdAndIsActiveTrue(savedTenant.getId());
+        long userCount   = userRepository.countByTenantId(savedTenant.getId());
+        long activeKeys  = tenantApiKeyRepository.countByTenantIdAndIsActiveTrue(savedTenant.getId());
         return buildDetailResponse(savedTenant, apiKey.getApiKey(), userCount, activeKeys);
     }
 
-    private static final BigDecimal COMMISSION_RATE = BigDecimal.valueOf(0.15);
+    // ── List tenants ─────────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
     public Page<TenantSummaryResponse> listTenants(String statusFilter, String search, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        TenantStatus status = parseStatus(statusFilter);
-        boolean hasSearch = search != null && !search.isBlank();
+        TenantStatus status  = parseStatus(statusFilter);
+        boolean      hasSearch = search != null && !search.isBlank();
 
         Page<Tenant> tenants;
         if (status != null && hasSearch) {
@@ -160,7 +181,9 @@ public class TenantService {
                     .id(t.getId())
                     .brandName(t.getBrandName())
                     .logoUrl(t.getLogoUrl())
-                    .customDomain(t.getCustomDomain())
+                    .allowedOrigins(t.getAllowedOrigins() != null
+                            ? Arrays.asList(t.getAllowedOrigins())
+                            : Collections.emptyList())
                     .status(t.getStatus().name())
                     .platformMode(t.getPlatformMode().name())
                     .houseBalance(t.getHouseBalance())
@@ -171,12 +194,14 @@ public class TenantService {
         });
     }
 
+    // ── Get single tenant detail ──────────────────────────────────────────────
+
     @Transactional(readOnly = true)
     public TenantDetailResponse getTenantDetail(UUID tenantId) {
-        Tenant tenant = loadTenant(tenantId);
-        long userCount = userRepository.countByTenantId(tenantId);
-        long activeKeys = tenantApiKeyRepository.countByTenantIdAndIsActiveTrue(tenantId);
-        String firstKey = tenantApiKeyRepository.findByTenantId(tenantId).stream()
+        Tenant tenant    = loadTenant(tenantId);
+        long   userCount = userRepository.countByTenantId(tenantId);
+        long   activeKeys = tenantApiKeyRepository.countByTenantIdAndIsActiveTrue(tenantId);
+        String firstKey  = tenantApiKeyRepository.findByTenantId(tenantId).stream()
                 .filter(k -> Boolean.TRUE.equals(k.getIsActive()))
                 .findFirst()
                 .map(k -> k.getApiKey().substring(0, 8) + "...")
@@ -184,44 +209,66 @@ public class TenantService {
         return buildDetailResponse(tenant, firstKey, userCount, activeKeys);
     }
 
+    // ── Update tenant status ──────────────────────────────────────────────────
+
     public void updateTenantStatus(UUID tenantId, TenantStatus status, String adminId) {
         guardMaster(tenantId);
-        Tenant tenant = loadTenant(tenantId);
-        TenantStatus oldStatus = tenant.getStatus();
+        Tenant tenant    = loadTenant(tenantId);
+        TenantStatus old = tenant.getStatus();
         tenant.setStatus(status);
         tenantRepository.save(tenant);
         auditLogService.record(MASTER_TENANT_ID, adminId, "SUPER_ADMIN",
                 "UPDATE_TENANT_STATUS", "Tenant", tenantId,
-                Map.of("status", oldStatus.name()), Map.of("status", status.name()), null);
+                Map.of("status", old.name()), Map.of("status", status.name()), null);
     }
+
+    // ── Update tenant settings ────────────────────────────────────────────────
 
     public void updateTenantSettings(UUID tenantId, UpdateTenantSettingsRequest req, String adminId) {
         guardMaster(tenantId);
         Tenant tenant = loadTenant(tenantId);
-        if (req.getBrandName() != null)          tenant.setBrandName(req.getBrandName());
-        if (req.getLogoUrl() != null)             tenant.setLogoUrl(req.getLogoUrl());
-        if (req.getFaviconUrl() != null)          tenant.setFaviconUrl(req.getFaviconUrl());
-        if (req.getPrimaryColor() != null)        tenant.setPrimaryColor(req.getPrimaryColor());
-        if (req.getAccentColor() != null)         tenant.setAccentColor(req.getAccentColor());
-        if (req.getSupportEmail() != null)        tenant.setSupportEmail(req.getSupportEmail());
-        if (req.getMinDeposit() != null)          tenant.setMinDeposit(req.getMinDeposit());
-        if (req.getMaxDeposit() != null)          tenant.setMaxDeposit(req.getMaxDeposit());
-        if (req.getMinWithdrawal() != null)       tenant.setMinWithdrawal(req.getMinWithdrawal());
-        if (req.getMaxWithdrawal() != null)       tenant.setMaxWithdrawal(req.getMaxWithdrawal());
+        if (req.getBrandName()          != null) { tenant.setBrandName(req.getBrandName()); tenant.setName(req.getBrandName()); }
+        if (req.getLogoUrl()            != null) tenant.setLogoUrl(req.getLogoUrl());
+        if (req.getFaviconUrl()         != null) tenant.setFaviconUrl(req.getFaviconUrl());
+        if (req.getPrimaryColor()       != null) tenant.setPrimaryColor(req.getPrimaryColor());
+        if (req.getAccentColor()        != null) tenant.setAccentColor(req.getAccentColor());
+        if (req.getSupportEmail()       != null) tenant.setSupportEmail(req.getSupportEmail());
+        if (req.getMinDeposit()         != null) tenant.setMinDeposit(req.getMinDeposit());
+        if (req.getMaxDeposit()         != null) tenant.setMaxDeposit(req.getMaxDeposit());
+        if (req.getMinWithdrawal()      != null) tenant.setMinWithdrawal(req.getMinWithdrawal());
+        if (req.getMaxWithdrawal()      != null) tenant.setMaxWithdrawal(req.getMaxWithdrawal());
         if (req.getAutoWithdrawalLimit() != null) tenant.setAutoWithdrawalLimit(req.getAutoWithdrawalLimit());
-        if (req.getDemoBalance() != null)         tenant.setDemoBalance(req.getDemoBalance());
+        if (req.getDemoBalance()        != null) tenant.setDemoBalance(req.getDemoBalance());
         if (req.getMaxConcurrentTrades() != null) tenant.setMaxConcurrentTrades(req.getMaxConcurrentTrades());
-        if (req.getKycRequired() != null)         tenant.setKycRequired(req.getKycRequired());
-        if (req.getRegistrationOpen() != null)    tenant.setRegistrationOpen(req.getRegistrationOpen());
+        if (req.getKycRequired()        != null) tenant.setKycRequired(req.getKycRequired());
+        if (req.getRegistrationOpen()   != null) tenant.setRegistrationOpen(req.getRegistrationOpen());
         tenantRepository.save(tenant);
         auditLogService.record(MASTER_TENANT_ID, adminId, "SUPER_ADMIN",
                 "UPDATE_TENANT_SETTINGS", "Tenant", tenantId, null, null, null);
     }
 
-    public TenantApiKeyResponse rotateApiKey(UUID tenantId, String keyLabel, String adminId) {
+    // ── Update allowed origins (SUPER_ADMIN version) ─────────────────────────
+
+    public void updateAllowedOrigins(UUID tenantId, List<String> domains, String adminId) {
         guardMaster(tenantId);
         Tenant tenant = loadTenant(tenantId);
-        TenantApiKey key = apiKeyService.createApiKey(tenant, keyLabel);
+        String[] origins = domains.stream()
+                .map(d -> d.toLowerCase().replaceAll("^https?://", "").replaceAll("/+$", ""))
+                .filter(d -> !d.isBlank())
+                .toArray(String[]::new);
+        tenant.setAllowedOrigins(origins);
+        tenantRepository.save(tenant);
+        auditLogService.record(MASTER_TENANT_ID, adminId, "SUPER_ADMIN",
+                "UPDATE_TENANT_DOMAINS", "Tenant", tenantId,
+                null, Map.of("domains", String.join(", ", origins)), null);
+    }
+
+    // ── API Key management ────────────────────────────────────────────────────
+
+    public TenantApiKeyResponse rotateApiKey(UUID tenantId, String keyLabel, String adminId) {
+        guardMaster(tenantId);
+        Tenant       tenant = loadTenant(tenantId);
+        TenantApiKey key    = apiKeyService.createApiKey(tenant, keyLabel);
         auditLogService.record(MASTER_TENANT_ID, adminId, "SUPER_ADMIN",
                 "ROTATE_API_KEY", "Tenant", tenantId, null, Map.of("label", keyLabel), null);
         return TenantApiKeyResponse.builder()
@@ -259,37 +306,48 @@ public class TenantService {
                 "REVOKE_API_KEY", "TenantApiKey", keyId, null, null, null);
     }
 
+    // ── Daraja credentials ────────────────────────────────────────────────────
+
     public void setDarajaCredentials(UUID tenantId, SetDarajaCredentialsRequest req, String adminId) {
         guardMaster(tenantId);
         Tenant tenant = loadTenant(tenantId);
-        if (req.getConsumerKey() != null)
-            tenant.setDarajaConsumerKey(aesEncryptionService.encrypt(req.getConsumerKey()));
-        if (req.getConsumerSecret() != null)
-            tenant.setDarajaConsumerSecret(aesEncryptionService.encrypt(req.getConsumerSecret()));
-        if (req.getPasskey() != null)
-            tenant.setDarajaPasskey(aesEncryptionService.encrypt(req.getPasskey()));
-        if (req.getShortcode() != null)
-            tenant.setDarajaShortcode(req.getShortcode());
-        if (req.getB2cInitiatorName() != null)
-            tenant.setDarajaB2cInitiatorName(req.getB2cInitiatorName());
-        if (req.getB2cSecurityCred() != null)
-            tenant.setDarajaB2cSecurityCred(aesEncryptionService.encrypt(req.getB2cSecurityCred()));
-        if (req.getEnvironment() != null)
-            tenant.setDarajaEnvironment(req.getEnvironment());
+        if (req.getConsumerKey()      != null) tenant.setDarajaConsumerKey(aesEncryptionService.encrypt(req.getConsumerKey()));
+        if (req.getConsumerSecret()   != null) tenant.setDarajaConsumerSecret(aesEncryptionService.encrypt(req.getConsumerSecret()));
+        if (req.getPasskey()          != null) tenant.setDarajaPasskey(aesEncryptionService.encrypt(req.getPasskey()));
+        if (req.getShortcode()        != null) tenant.setDarajaShortcode(req.getShortcode());
+        if (req.getB2cInitiatorName() != null) tenant.setDarajaB2cInitiatorName(req.getB2cInitiatorName());
+        if (req.getB2cSecurityCred()  != null) tenant.setDarajaB2cSecurityCred(aesEncryptionService.encrypt(req.getB2cSecurityCred()));
+        if (req.getEnvironment()      != null) tenant.setDarajaEnvironment(req.getEnvironment());
         tenantRepository.save(tenant);
         auditLogService.record(MASTER_TENANT_ID, adminId, "SUPER_ADMIN",
                 "SET_DARAJA_CREDENTIALS", "Tenant", tenantId,
                 null, Map.of("environment", req.getEnvironment() != null ? req.getEnvironment() : "unchanged"), null);
     }
 
+    // ── Marketer withdrawal config ────────────────────────────────────────────
+
+    public void configureMarketerWithdrawal(UUID tenantId, MarketerWithdrawalConfigRequest req, String adminId) {
+        guardMaster(tenantId);
+        Tenant tenant = loadTenant(tenantId);
+        tenant.setMarketerWithdrawalEnabled(req.getEnabled());
+        tenant.setMarketerMaxWithdrawal(req.getMaxWithdrawal());
+        tenantRepository.save(tenant);
+        auditLogService.record(MASTER_TENANT_ID, adminId, "SUPER_ADMIN",
+                "CONFIGURE_MARKETER_WITHDRAWAL", "Tenant", tenantId,
+                null, Map.of("enabled", req.getEnabled(), "maxWithdrawal", req.getMaxWithdrawal()), null);
+    }
+
+    // ── Private helpers ───────────────────────────────────────────────────────
+
     private Tenant loadTenant(UUID tenantId) {
         return tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new BusinessException("TENANT_NOT_FOUND", "Tenant not found"));
     }
 
+    /** Prevents SUPER_ADMIN from accidentally mutating the master tenant via tenant endpoints. */
     private void guardMaster(UUID tenantId) {
         if (MASTER_TENANT_ID.equals(tenantId)) {
-            throw new BusinessException("FORBIDDEN", "Cannot modify master tenant");
+            throw new BusinessException("FORBIDDEN", "Cannot modify master tenant via tenant management endpoints");
         }
     }
 
@@ -311,7 +369,9 @@ public class TenantService {
                 .primaryColor(t.getPrimaryColor())
                 .accentColor(t.getAccentColor())
                 .supportEmail(t.getSupportEmail())
-                .customDomain(t.getCustomDomain())
+                .allowedOrigins(t.getAllowedOrigins() != null
+                        ? Arrays.asList(t.getAllowedOrigins())
+                        : Collections.emptyList())
                 .status(t.getStatus().name())
                 .platformMode(t.getPlatformMode().name())
                 .houseBalance(t.getHouseBalance())
@@ -331,20 +391,5 @@ public class TenantService {
                 .apiKey(apiKey)
                 .createdAt(t.getCreatedAt())
                 .build();
-    }
-
-    @Transactional
-    public void configureMarketerWithdrawal(UUID tenantId,
-            com.lezifx.trading.web.dto.request.MarketerWithdrawalConfigRequest req,
-            String adminId) {
-        guardMaster(tenantId);
-        Tenant tenant = loadTenant(tenantId);
-        tenant.setMarketerWithdrawalEnabled(req.getEnabled());
-        tenant.setMarketerMaxWithdrawal(req.getMaxWithdrawal());
-        tenantRepository.save(tenant);
-        auditLogService.record(MASTER_TENANT_ID, adminId, "SUPER_ADMIN",
-            "CONFIGURE_MARKETER_WITHDRAWAL", "Tenant", tenantId,
-            null, java.util.Map.of("enabled", req.getEnabled(),
-                "maxWithdrawal", req.getMaxWithdrawal()), null);
     }
 }

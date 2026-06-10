@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Data
 public class CreateTenantRequest {
@@ -18,7 +19,13 @@ public class CreateTenantRequest {
     private String primaryColor;
     private String accentColor;
     private String supportEmail;
-    private String customDomain;
+
+    /**
+     * All domains and deployment URLs for this tenant.
+     * Replaces the old single customDomain field.
+     * Frontend sends comma-split list: ["poa-trade.com", "poa-trade.onrender.com"]
+     */
+    private List<String> customDomains;
 
     @NotBlank
     @Email

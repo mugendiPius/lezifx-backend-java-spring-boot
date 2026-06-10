@@ -16,7 +16,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -39,8 +41,15 @@ public class Tenant {
     @Column(name = "name", nullable = false, length = 100)
     private String name;
 
-    @Column(name = "custom_domain", unique = true, length = 255)
-    private String customDomain;
+    /**
+     * All domains and deployment URLs that resolve to this tenant.
+     * Replaces the old single custom_domain column.
+     * Examples: ["poa-trade.com", "www.poa-trade.com", "poa-trade.onrender.com"]
+     * PublicConfigController matches incoming Origin/X-Domain against this array.
+     */
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "allowed_origins", columnDefinition = "text[]")
+    private String[] allowedOrigins;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)

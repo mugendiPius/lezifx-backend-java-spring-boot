@@ -20,21 +20,22 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Component
 @Order(2)
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private static final List<String> SKIP_PATHS = List.of(
-        "/api/v1/public/",
-        "/api/v1/mpesa/c2b/callback",
-        "/actuator/",
-        "/ws/",
-        "/api/v1/auth/login",
-        "/api/v1/auth/register",
-        "/api/v1/auth/refresh",
-        "/api/v1/superadmin/auth/login",
-        "/api/v1/superadmin/auth/refresh"
+            "/api/v1/public/",
+            "/api/v1/mpesa/c2b/callback",
+            "/actuator/",
+            "/ws/",
+            "/api/v1/auth/login",
+            "/api/v1/auth/register",
+            "/api/v1/auth/refresh",
+            "/api/v1/superadmin/auth/login",
+            "/api/v1/superadmin/auth/refresh"
     );
 
     private final JwtService jwtService;
@@ -76,10 +77,25 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String role = jwtService.extractRole(token);
 
         java.util.UUID tenantContextId = TenantContext.getOrNull();
-        if (tenantContextId != null && !"SUPER_ADMIN".equals(role)) {
-            if (!tenantContextId.toString().equals(jwtTenantId)) {
+
+        if ("SUPER_ADMIN".equals(role)) {
+            // SUPER_ADMIN: if TenantContext not set by ApiKeyResolutionFilter
+            // (i.e. master API key not sent or not matched), fall back to the
+            // tenantId embedded in the JWT. This allows SUPER_ADMIN to hit
+            // /admin/** endpoints for the master tenant without an API key,
+            // and also works when the master API key IS sent (context already set).
+            if (tenantContextId == null && jwtTenantId != null) {
+                try {
+                    TenantContext.set(UUID.fromString(jwtTenantId));
+                } catch (IllegalArgumentException ignored) {
+                    // malformed tenantId in token — let downstream fail naturally
+                }
+            }
+        } else {
+            // Non-SUPER_ADMIN: enforce that JWT tenant matches the API key tenant
+            if (tenantContextId != null && !tenantContextId.toString().equals(jwtTenantId)) {
                 writeError(response, HttpStatus.UNAUTHORIZED, "TENANT_MISMATCH",
-                    "JWT tenant does not match API key tenant");
+                        "JWT tenant does not match API key tenant");
                 return;
             }
         }
@@ -87,9 +103,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String userId = jwtService.extractUserId(token);
 
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-            userId,
-            null,
-            List.of(new SimpleGrantedAuthority("ROLE_" + role))
+                userId,
+                null,
+                List.of(new SimpleGrantedAuthority("ROLE_" + role))
         );
         authentication.setDetails(request);
         SecurityContextHolder.getContext().setAuthentication(authentication);
@@ -98,12 +114,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     }
 
     private void writeError(HttpServletResponse response, HttpStatus status,
-                             String error, String message) throws IOException {
+                            String error, String message) throws IOException {
         response.setStatus(status.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         objectMapper.writeValue(response.getWriter(), Map.of(
-            "error", error,
-            "message", message
+                "error", error,
+                "message", message
         ));
     }
 }

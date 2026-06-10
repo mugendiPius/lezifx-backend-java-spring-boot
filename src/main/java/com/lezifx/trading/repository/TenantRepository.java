@@ -19,7 +19,22 @@ import java.util.UUID;
 @Repository
 public interface TenantRepository extends JpaRepository<Tenant, UUID> {
 
-    Optional<Tenant> findByCustomDomain(String customDomain);
+    /**
+     * Find a tenant whose allowed_origins array contains the given domain.
+     * Uses PostgreSQL native array operator @> for GIN-indexed lookup.
+     * Called by PublicConfigController on every /public/config request.
+     */
+    @Query(value = "SELECT * FROM tenants WHERE allowed_origins @> ARRAY[:domain]::text[] LIMIT 1",
+           nativeQuery = true)
+    Optional<Tenant> findByAllowedOriginsContaining(@Param("domain") String domain);
+
+    /**
+     * Legacy method kept for any existing callers — delegates to array lookup.
+     * Will find a tenant only if the domain exists in their allowed_origins.
+     */
+    default Optional<Tenant> findByCustomDomain(String domain) {
+        return findByAllowedOriginsContaining(domain);
+    }
 
     List<Tenant> findByStatus(TenantStatus status);
 
