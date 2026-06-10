@@ -13,9 +13,6 @@ spring:
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000
-      data-source-properties:
-        ssl: true
-        sslmode: require
 
   jpa:
     hibernate:
@@ -48,9 +45,7 @@ spring:
 
   data:
     redis:
-      url: ${REDIS_URL}
-      host: ${REDISHOST}
-      port: ${REDISPORT:6379}
+      url: ${REDIS_URL:redis://localhost:6379}
       password: ${REDIS_PASSWORD:}
       timeout: 2000ms
       lettuce:
@@ -67,16 +62,16 @@ server:
     keep-alive-timeout: 30s
 
 jwt:
-  secret: ${JWT_SECRET}
+  secret: ${JWT_SECRET:dev-secret-change-in-production-min-32-chars}
   access-token-expiry: 900
   refresh-token-expiry: 604800
 
 superadmin:
-  bootstrap-email: ${SUPER_ADMIN_EMAIL}
-  bootstrap-password: ${SUPER_ADMIN_PASSWORD}
+  bootstrap-email: ${SUPER_ADMIN_EMAIL:admin@lezifx.com}
+  bootstrap-password: ${SUPER_ADMIN_PASSWORD:changeme}
 
 encryption:
-  key: ${ENCRYPTION_KEY}
+  key: ${ENCRYPTION_KEY:dev-encryption-key-change-in-prod}
 
 platform:
   social-feed:
