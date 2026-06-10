@@ -50,18 +50,19 @@ public class TradingController {
         var tenantPairs = tradingPairRepository.findByTenantIdAndIsEnabledTrue(tenantId);
 
         List<TradingPairResponse> response = Stream.concat(globalPairs.stream(), tenantPairs.stream())
-            .map(p -> TradingPairResponse.builder()
-                .id(p.getId())
-                .symbol(p.getSymbol())
-                .name(p.getName())
-                .baseAsset(p.getBaseAsset())
-                .quoteAsset(p.getQuoteAsset())
-                .category(p.getCategory())
-                .basePrice(p.getBasePrice())
-                .minStake(p.getMinStake())
-                .maxStake(p.getMaxStake())
-                .allowedDurations(p.getAllowedDurations())
-                .build())
+                .map(p -> TradingPairResponse.builder()
+                        .id(p.getId())
+                        .symbol(p.getSymbol())
+                        .name(p.getName())
+                        .baseAsset(p.getBaseAsset())
+                        .quoteAsset(p.getQuoteAsset())
+                        .category(p.getCategory())
+                        .basePrice(p.getBasePrice())
+                        .isEnabled(Boolean.TRUE.equals(p.getIsEnabled()))  // ADD THIS LINE
+                        .minStake(p.getMinStake())
+                        .maxStake(p.getMaxStake())
+                        .allowedDurations(p.getAllowedDurations())
+                        .build())
             .collect(Collectors.toList());
 
         return ResponseEntity.ok(response);

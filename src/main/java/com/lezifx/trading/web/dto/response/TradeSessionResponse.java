@@ -1,5 +1,6 @@
 package com.lezifx.trading.web.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,7 +20,10 @@ public class TradeSessionResponse {
     private UUID tenantId;
     private UUID userId;
     private String pairSymbol;
+    @JsonProperty("isDemo")
     private boolean isDemo;
+
+    @JsonProperty("isMarketerTrade")
     private boolean isMarketerTrade;
     private BigDecimal stakeAmount;
     private BigDecimal entryPrice;
