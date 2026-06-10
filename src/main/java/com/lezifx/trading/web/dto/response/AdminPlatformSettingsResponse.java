@@ -14,13 +14,8 @@ import java.math.BigDecimal;
 public class AdminPlatformSettingsResponse {
 
     private String      platformMode;
-
-    /** BUG 2: floorBalance was missing from getSettings() builder — now included. */
     private BigDecimal  floorBalance;
-
-    /** BUG 4: killSwitchActive was missing entirely — now included. */
     private Boolean     killSwitchActive;
-
     private BigDecimal  autoWithdrawalLimit;
     private BigDecimal  minDeposit;
     private BigDecimal  maxDeposit;
@@ -32,4 +27,12 @@ public class AdminPlatformSettingsResponse {
     private Boolean     registrationOpen;
     private Boolean     marketerWithdrawalEnabled;
     private BigDecimal  marketerMaxWithdrawal;
+
+    // ── Branding ──────────────────────────────────────────────────────────────
+    private String      brandName;
+    private String      primaryColor;
+    private String      accentColor;
+    private String      tagline;
+    private String      logoUrl;
+    private String      faviconUrl;
 }

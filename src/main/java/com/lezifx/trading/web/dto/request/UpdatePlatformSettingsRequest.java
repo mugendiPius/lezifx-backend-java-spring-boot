@@ -21,4 +21,10 @@ public class UpdatePlatformSettingsRequest {
     private BigDecimal demoBalance;
     private Boolean    kycRequired;
     private Boolean    registrationOpen;
+
+    // Add to existing request DTO:
+    private String  brandName;
+    private String  primaryColor;
+    private String  accentColor;
+    private String  tagline;
 }

@@ -83,6 +83,12 @@ public class AdminPlatformService {
             .registrationOpen(tenant.getRegistrationOpen())
             .marketerWithdrawalEnabled(tenant.getMarketerWithdrawalEnabled())
             .marketerMaxWithdrawal(tenant.getMarketerMaxWithdrawal())
+                .brandName(tenant.getBrandName())
+                .primaryColor(tenant.getPrimaryColor())
+                .accentColor(tenant.getAccentColor())
+//                .tagline(tenant.getTagline())
+                .logoUrl(tenant.getLogoUrl())
+                .faviconUrl(tenant.getFaviconUrl())
             .build();
     }
 
@@ -112,6 +118,11 @@ public class AdminPlatformService {
         if (req.getKycRequired()         != null) tenant.setKycRequired(req.getKycRequired());
         if (req.getRegistrationOpen()    != null) tenant.setRegistrationOpen(req.getRegistrationOpen());
 
+        // Inside your updateSettings method, after the existing limit fields, add:
+        if (req.getBrandName()    != null) tenant.setBrandName(req.getBrandName());
+        if (req.getPrimaryColor() != null) tenant.setPrimaryColor(req.getPrimaryColor());
+        if (req.getAccentColor()  != null) tenant.setAccentColor(req.getAccentColor());
+//        if (req.getTagline()      != null) tenant.setTagline(req.getTagline());
         tenantRepository.save(tenant);
 
         auditLogService.record(tenantId, adminId, "ADMIN", "UPDATE_PLATFORM_SETTINGS",
