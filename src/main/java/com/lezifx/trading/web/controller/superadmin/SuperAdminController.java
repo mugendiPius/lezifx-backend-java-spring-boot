@@ -268,7 +268,7 @@ public class SuperAdminController {
      * emergency domain correction.
      * Tenant admins manage their own domains via PUT /admin/platform/domains.
      */
-    @PutMapping("/tenants/{tenantId}/domains")
+    /** @PutMapping("/tenants/{tenantId}/domains")
     public ResponseEntity<Map<String, Object>> updateTenantDomains(
             @PathVariable UUID tenantId,
             @RequestBody UpdateTenantDomainsRequest req,
@@ -281,5 +281,5 @@ public class SuperAdminController {
                 "tenantId", tenantId,
                 "domains", req.getDomains()
         ));
-    }
+    }*/
 }
