@@ -9,7 +9,6 @@ import com.lezifx.trading.web.dto.request.BuyTradeRequest;
 import com.lezifx.trading.web.dto.response.SocialFeedEventDto;
 import com.lezifx.trading.web.dto.response.TradeSessionResponse;
 import com.lezifx.trading.web.dto.response.TradingPairResponse;
-import com.lezifx.trading.web.exception.BusinessException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -25,7 +24,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -35,11 +33,12 @@ import java.util.stream.Stream;
 @RequiredArgsConstructor
 public class TradingController {
 
-    private static final Set<Integer> ALLOWED_DURATIONS = Set.of(30, 60, 120, 300);
+    // FIX B6: ALLOWED_DURATIONS constant removed  validation is enforced solely
+    //         in TradeSessionService to avoid duplicate rejection logic.
 
-    private final TradeSessionService tradeSessionService;
-    private final PayoutRateService payoutRateService;
-    private final SocialFeedService socialFeedService;
+    private final TradeSessionService   tradeSessionService;
+    private final PayoutRateService     payoutRateService;
+    private final SocialFeedService     socialFeedService;
     private final TradingPairRepository tradingPairRepository;
 
     @GetMapping("/pairs")
@@ -58,12 +57,12 @@ public class TradingController {
                         .quoteAsset(p.getQuoteAsset())
                         .category(p.getCategory())
                         .basePrice(p.getBasePrice())
-                        .isEnabled(Boolean.TRUE.equals(p.getIsEnabled()))  // ADD THIS LINE
+                        .isEnabled(Boolean.TRUE.equals(p.getIsEnabled()))
                         .minStake(p.getMinStake())
                         .maxStake(p.getMaxStake())
                         .allowedDurations(p.getAllowedDurations())
                         .build())
-            .collect(Collectors.toList());
+                .collect(Collectors.toList());
 
         return ResponseEntity.ok(response);
     }
@@ -75,17 +74,13 @@ public class TradingController {
     }
 
     @PostMapping("/buy")
-    public ResponseEntity<TradeSessionResponse> buy(@Valid @RequestBody BuyTradeRequest request,
-                                                     @AuthenticationPrincipal String userId) {
-        if (!ALLOWED_DURATIONS.contains(request.getDurationSeconds())) {
-            throw new BusinessException("INVALID_DURATION",
-                "Duration must be one of: 30, 60, 120, 300 seconds");
-        }
-
+    public ResponseEntity<TradeSessionResponse> buy(
+            @Valid @RequestBody BuyTradeRequest request,
+            @AuthenticationPrincipal String userId) {
+        // FIX B6: duration validation removed here  TradeSessionService owns it.
         UUID tenantId = TenantContext.get();
         TradeSessionResponse response = tradeSessionService.buy(
             request, UUID.fromString(userId), tenantId);
-
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -95,7 +90,6 @@ public class TradingController {
         UUID tenantId = TenantContext.get();
         TradeSessionResponse session = tradeSessionService.getActiveSession(
             UUID.fromString(userId), tenantId);
-
         if (session == null) {
             return ResponseEntity.notFound().build();
         }

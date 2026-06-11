@@ -75,7 +75,7 @@ public class DepositService {
             c2bService.initiateStk(deposit.getId());
         } catch (Exception e) {
             log.warn("STK push failed for deposit {}: {}", deposit.getId(), e.getMessage());
-            // Don't fail the deposit initiation — STK is best-effort
+            // Don't fail the deposit initiation  STK is best-effort
         }
 
         return DepositResponse.builder()

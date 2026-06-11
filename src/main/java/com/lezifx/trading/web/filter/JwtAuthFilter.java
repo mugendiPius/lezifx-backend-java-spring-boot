@@ -88,7 +88,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 try {
                     TenantContext.set(UUID.fromString(jwtTenantId));
                 } catch (IllegalArgumentException ignored) {
-                    // malformed tenantId in token — let downstream fail naturally
+                    // malformed tenantId in token  let downstream fail naturally
                 }
             }
         } else {

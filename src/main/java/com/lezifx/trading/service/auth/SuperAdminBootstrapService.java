@@ -51,7 +51,7 @@ public class SuperAdminBootstrapService {
 
             var masterTenant = tenantRepository.findById(MASTER_TENANT_ID).orElse(null);
             if (masterTenant == null) {
-                log.warn("Master tenant not found — skipping SUPER_ADMIN bootstrap. Will retry on next startup.");
+                log.warn("Master tenant not found  skipping SUPER_ADMIN bootstrap. Will retry on next startup.");
                 return;
             }
 
@@ -82,7 +82,7 @@ public class SuperAdminBootstrapService {
             log.info("SUPER_ADMIN bootstrapped: {}", bootstrapEmail);
 
         } catch (Exception e) {
-            log.warn("SUPER_ADMIN bootstrap skipped — tables not ready yet: {}. Will succeed on next startup.", e.getMessage());
+            log.warn("SUPER_ADMIN bootstrap skipped  tables not ready yet: {}. Will succeed on next startup.", e.getMessage());
         }
     }
 }

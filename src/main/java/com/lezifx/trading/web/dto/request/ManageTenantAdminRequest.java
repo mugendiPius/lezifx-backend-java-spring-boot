@@ -6,9 +6,9 @@ import lombok.Data;
  * Single request DTO for all three admin management actions
  * performed by SUPER_ADMIN on a tenant's admin users.
  *
- * action = CREATE         → creates a new ADMIN user in the tenant
- * action = ELEVATE        → promotes an existing PLAYER to ADMIN
- * action = RESET_PASSWORD → changes an existing ADMIN user's password
+ * action = CREATE          creates a new ADMIN user in the tenant
+ * action = ELEVATE         promotes an existing PLAYER to ADMIN
+ * action = RESET_PASSWORD  changes an existing ADMIN user's password
  *
  * email is required for all three actions.
  * password + fullName required for CREATE.

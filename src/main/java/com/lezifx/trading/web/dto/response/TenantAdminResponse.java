@@ -9,7 +9,7 @@ import java.util.UUID;
 /**
  * Returned by GET /superadmin/tenants/{id}/admins
  * and POST /superadmin/tenants/{id}/admins.
- * Contains only the fields SUPER_ADMIN needs to see — no wallet data.
+ * Contains only the fields SUPER_ADMIN needs to see  no wallet data.
  */
 @Data
 @Builder

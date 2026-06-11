@@ -49,7 +49,7 @@ public class WalletService {
             walletRepository.save(wallet);
 
         } else if (isMarketer) {
-            // Load user directly — avoids N+1 through lazy wallet.getUser()
+            // Load user directly  avoids N+1 through lazy wallet.getUser()
             User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND", "User not found"));
             balanceBefore = user.getMarketerBalance();
@@ -108,7 +108,7 @@ public class WalletService {
             }
 
         } else if (isMarketer) {
-            // Load user directly — avoids N+1 through lazy wallet.getUser()
+            // Load user directly  avoids N+1 through lazy wallet.getUser()
             User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND", "User not found"));
             balanceBefore = user.getMarketerBalance();

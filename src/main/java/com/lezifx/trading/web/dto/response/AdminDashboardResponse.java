@@ -9,7 +9,7 @@ import java.math.BigDecimal;
 
 @Data @Builder @NoArgsConstructor @AllArgsConstructor
 public class AdminDashboardResponse {
-    // ── User stats ─────────────────────────────────────────────────────
+    //  User stats 
     private long totalUsers;
     private long newSignupsToday;
     private long newSignupsWeek;
@@ -17,20 +17,20 @@ public class AdminDashboardResponse {
     private long activeStakersToday;
     private long activeStakersWeek;
 
-    // ── Financial stats ────────────────────────────────────────────────
+    //  Financial stats 
     private BigDecimal totalDepositsToday;
     private BigDecimal totalWithdrawsToday;
     private BigDecimal totalStakesLive;
     private BigDecimal totalVolume24h;
 
-    // ── House / platform ───────────────────────────────────────────────
+    //  House / platform 
     private BigDecimal houseBalance;
     private BigDecimal floorBalance;
     private String platformMode;
     private boolean killSwitchActive;
     private boolean winModeRejected;
 
-    // ── Extra fields used internally ───────────────────────────────────
+    //  Extra fields used internally 
     private BigDecimal houseRatio;
     private long activeTrades;
     private BigDecimal totalDeposited;

@@ -31,7 +31,7 @@ public class PublicConfigController {
      * Bootstrap endpoint called by every frontend on load.
      * Resolution order:
      *   1. Extract domain from X-Domain header, then Origin, then Referer.
-     *   2. Query allowed_origins array — GIN-indexed, very fast.
+     *   2. Query allowed_origins array  GIN-indexed, very fast.
      *   3. Fall back to master tenant if no match found.
      *
      * This ensures that any registered deployment URL (Render, Vercel, custom)
@@ -48,12 +48,12 @@ public class PublicConfigController {
         if (domain != null && !domain.isBlank()) {
             tenant = tenantRepository.findByAllowedOriginsContaining(domain).orElse(null);
             if (tenant != null) {
-                log.debug("[PublicConfig] Resolved domain '{}' → tenant '{}'", domain, tenant.getBrandName());
+                log.debug("[PublicConfig] Resolved domain '{}'  tenant '{}'", domain, tenant.getBrandName());
             }
         }
 
         if (tenant == null) {
-            log.debug("[PublicConfig] Domain '{}' not found — falling back to master tenant", domain);
+            log.debug("[PublicConfig] Domain '{}' not found  falling back to master tenant", domain);
             tenant = tenantRepository.findById(MASTER_TENANT_ID)
                     .orElseThrow(() -> new RuntimeException("Master tenant not found"));
         }
@@ -61,18 +61,18 @@ public class PublicConfigController {
         return buildConfigResponse(tenant);
     }
 
-    // ── Domain extraction ────────────────────────────────────────────────────
+    //  Domain extraction 
 
     private String resolveDomain(HttpServletRequest request) {
-        // 1. Explicit header — frontend can send this for clarity
+        // 1. Explicit header  frontend can send this for clarity
         String xDomain = request.getHeader("X-Domain");
         if (xDomain != null && !xDomain.isBlank()) return normalise(xDomain.trim());
 
-        // 2. Origin header — present on all CORS requests
+        // 2. Origin header  present on all CORS requests
         String origin = request.getHeader("Origin");
         if (origin != null && !origin.isBlank()) return normalise(stripProtocol(origin));
 
-        // 3. Referer header — fallback
+        // 3. Referer header  fallback
         String referer = request.getHeader("Referer");
         if (referer != null && !referer.isBlank()) return normalise(stripProtocol(referer));
 
@@ -91,7 +91,7 @@ public class PublicConfigController {
         return domain.toLowerCase().replaceAll("/+$", "");
     }
 
-    // ── Response builder ─────────────────────────────────────────────────────
+    //  Response builder 
 
     private TenantConfigResponse buildConfigResponse(Tenant tenant) {
         String activeApiKey = tenantApiKeyRepository.findByTenantId(tenant.getId())

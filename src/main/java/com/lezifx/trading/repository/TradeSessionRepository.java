@@ -22,6 +22,9 @@ public interface TradeSessionRepository extends JpaRepository<TradeSession, UUID
 
     List<TradeSession> findByStatusAndExpiresAtBefore(TradeSessionStatus status, Instant now);
 
+    // FIX B2: detect orphaned SETTLING rows by their last-updated timestamp
+    List<TradeSession> findByStatusAndUpdatedAtBefore(TradeSessionStatus status, Instant cutoff);
+
     List<TradeSession> findByUserIdAndTenantId(UUID userId, UUID tenantId);
 
     @Query("""

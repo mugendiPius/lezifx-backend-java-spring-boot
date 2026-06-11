@@ -86,7 +86,7 @@ public class TenantManagementController {
     }
 
     /**
-     * SUPER_ADMIN domain management — replaces entire allowed_origins for a tenant.
+     * SUPER_ADMIN domain management  replaces entire allowed_origins for a tenant.
      * Tenant admins use PUT /admin/platform/domains for self-service.
      * SUPER_ADMIN uses this for emergency correction or initial setup.
      */

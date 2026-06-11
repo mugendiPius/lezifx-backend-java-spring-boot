@@ -27,8 +27,8 @@ import java.util.UUID;
  * that does not fit AdminPlatformController (which handles mode, kill-switch, Daraja etc).
  *
  * Currently exposes:
- *   GET  /admin/platform/domains  → returns the tenant's allowed_origins list
- *   PUT  /admin/platform/domains  → replaces the tenant's allowed_origins list
+ *   GET  /admin/platform/domains   returns the tenant's allowed_origins list
+ *   PUT  /admin/platform/domains   replaces the tenant's allowed_origins list
  */
 @Slf4j
 @RestController
@@ -41,7 +41,7 @@ public class AdminSettingsController {
 
     /**
      * Returns the list of allowed origins (domains + deployment URLs) for
-     * the current tenant. Used by the frontend Settings → Domains tab.
+     * the current tenant. Used by the frontend Settings  Domains tab.
      */
     @GetMapping("/domains")
     public ResponseEntity<List<String>> getDomains() {
@@ -56,7 +56,7 @@ public class AdminSettingsController {
 
     /**
      * Replaces the entire allowed_origins array for the current tenant.
-     * The frontend sends the full updated list — not a diff.
+     * The frontend sends the full updated list  not a diff.
      * Each domain is normalised (lowercase, protocol stripped).
      */
     @PutMapping("/domains")

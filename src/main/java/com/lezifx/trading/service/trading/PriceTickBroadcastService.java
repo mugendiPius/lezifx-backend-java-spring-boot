@@ -15,16 +15,16 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * PriceTickBroadcastService — optimised, zero DB I/O on the hot path.
+ * PriceTickBroadcastService  optimised, zero DB I/O on the hot path.
  *
  * Before:  ~10,200 DB ops/sec (full table scans + saveAll every tick).
  * After:   0 DB ops/sec during normal ticking.
  *          All state read from ActiveSessionCache (ConcurrentHashMap).
- *          PriceTick rows are NO LONGER written per tick — they were
+ *          PriceTick rows are NO LONGER written per tick  they were
  *          ephemeral broadcast data, not ledger data.  The cleanup
  *          scheduler is therefore also a no-op now.
  *
- * Tick interval is 500 ms (halved from 1 s) — safe because there is
+ * Tick interval is 500 ms (halved from 1 s)  safe because there is
  * no DB write blocking the thread anymore, giving smoother charts.
  */
 @Service
@@ -36,12 +36,12 @@ public class PriceTickBroadcastService {
     private final PriceGeneratorService priceGeneratorService;
     private final SimpMessagingTemplate messagingTemplate;
 
-    // ── hot path — called every 500 ms by PriceTickScheduler ─────────────────
+    //  hot path  called every 500 ms by PriceTickScheduler 
 
     public void broadcastTicks() {
         Instant now = Instant.now();
 
-        // ── Step 1: active-session symbols (bridge ticks toward sealed exit) ──
+        //  Step 1: active-session symbols (bridge ticks toward sealed exit) 
         Map<String, ActiveSessionCache.CachedSession> activePairs =
             activeSessionCache.getRepresentativeSessionsPerPair();
 
@@ -71,7 +71,7 @@ public class PriceTickBroadcastService {
             }
         }
 
-        // ── Step 2: idle symbols (random walk, no DB, no save) ────────────────
+        //  Step 2: idle symbols (random walk, no DB, no save) 
         Set<String> allKeys = activeSessionCache.getAllTenantPairKeys();
 
         for (String pairKey : allKeys) {
@@ -101,7 +101,7 @@ public class PriceTickBroadcastService {
         }
     }
 
-    // ── private ───────────────────────────────────────────────────────────────
+    //  private 
 
     private void broadcast(UUID tenantId, String symbol, BigDecimal price, Instant ts) {
         PriceTickEvent event = PriceTickEvent.builder()

@@ -11,7 +11,7 @@ public class SetDarajaCredentialsRequest {
     /** Frontend field: consumerSecret */
     private String consumerSecret;
 
-    /** Frontend field: shortCode (was `shortcode` — case fixed) */
+    /** Frontend field: shortCode (was `shortcode`  case fixed) */
     private String shortCode;
 
     /** Frontend field: passkey */

@@ -21,7 +21,7 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
 
     Page<WalletTransaction> findByTenantId(UUID tenantId, Pageable pageable);
 
-    // ── Tenant-level aggregates ───────────────────────────────────────────────
+    //  Tenant-level aggregates 
 
     @Query("""
         SELECT COALESCE(SUM(wt.amount), 0)
@@ -53,7 +53,7 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
     """)
     BigDecimal sumStakesForTenant(@Param("tenantId") UUID tenantId);
 
-    // ── Date-range aggregates for dashboard ──────────────────────────────────
+    //  Date-range aggregates for dashboard 
 
     @Query("""
         SELECT COALESCE(SUM(wt.amount), 0)
@@ -94,7 +94,7 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
         @Param("tenantId") UUID tenantId,
         @Param("since") Instant since);
 
-    // ── User-level paginated queries ──────────────────────────────────────────
+    //  User-level paginated queries 
 
     @Query("""
         SELECT wt FROM WalletTransaction wt
@@ -126,7 +126,7 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
         @Param("isDemo") boolean isDemo,
         Pageable pageable);
 
-    // ── User-level aggregates ─────────────────────────────────────────────────
+    //  User-level aggregates 
 
     @Query("""
         SELECT COALESCE(SUM(ABS(wt.amount)), 0)

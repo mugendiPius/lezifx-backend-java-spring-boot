@@ -41,7 +41,7 @@ public class TradeSessionService {
     private final PriceGeneratorService  priceGeneratorService;
     private final PayoutRateService      payoutRateService;
     private final HouseBalanceService    houseBalanceService;
-    private final ActiveSessionCache     activeSessionCache;   // ← NEW
+    private final ActiveSessionCache     activeSessionCache;
 
     public TradeSessionResponse buy(BuyTradeRequest request, UUID userId, UUID tenantId) {
         if (!ALLOWED_DURATIONS.contains(request.getDurationSeconds())) {
@@ -89,9 +89,9 @@ public class TradeSessionService {
         long allActive = tradeSessionRepository
             .countByTenantIdAndStatusAndIsMarketerTradeFalse(tenantId, TradeSessionStatus.ACTIVE);
 
-        boolean    isMarketer      = Boolean.TRUE.equals(user.getIsMarketer());
-        BigDecimal entryPrice      = priceGeneratorService.getCurrentPrice(tenantId, request.getPairSymbol());
-        BigDecimal houseRatio      = houseBalanceService.getHouseRatio(tenantId);
+        boolean    isMarketer       = Boolean.TRUE.equals(user.getIsMarketer());
+        BigDecimal entryPrice       = priceGeneratorService.getCurrentPrice(tenantId, request.getPairSymbol());
+        BigDecimal houseRatio       = houseBalanceService.getHouseRatio(tenantId);
         BigDecimal lockedPayoutRate = payoutRateService.getPayoutRate(tenantId, request.getDurationSeconds());
 
         BigDecimal sealedExitPrice = priceGeneratorService.computeSealedExitPrice(
@@ -103,9 +103,8 @@ public class TradeSessionService {
             houseRatio
         );
 
-        walletService.deductStake(userId, request.getStakeAmount(),
-            request.isDemo(), isMarketer, null);
-
+        // FIX B3: save session BEFORE deducting wallet so session.getId() is available
+        //         as the reference on the wallet transaction.
         Instant now = Instant.now();
         TradeSession session = TradeSession.builder()
             .tenant(tenant)
@@ -122,9 +121,15 @@ public class TradeSessionService {
             .expiresAt(now.plusSeconds(request.getDurationSeconds()))
             .build();
 
-        session = tradeSessionRepository.save(session);
+        // FIX B1: saveAndFlush ensures @CreationTimestamp populates startedAt
+        //         before mapToResponse is called.
+        session = tradeSessionRepository.saveAndFlush(session);
 
-        // ── notify cache immediately so next tick cycle sees this session ─────
+        // FIX B3: deduct after save; pass session id as reference
+        walletService.deductStake(userId, request.getStakeAmount(),
+            request.isDemo(), isMarketer, session.getId());
+
+        // Notify cache immediately so next tick cycle sees this session
         activeSessionCache.onSessionCreated(session);
 
         return mapToResponse(session);

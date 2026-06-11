@@ -28,7 +28,7 @@ public class AdminPlatformSettingsResponse {
     private Boolean     marketerWithdrawalEnabled;
     private BigDecimal  marketerMaxWithdrawal;
 
-    // ── Branding ──────────────────────────────────────────────────────────────
+    //  Branding 
     private String      brandName;
     private String      primaryColor;
     private String      accentColor;

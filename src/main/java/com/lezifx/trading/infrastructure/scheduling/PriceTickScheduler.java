@@ -7,7 +7,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * Fires every 500 ms — safe now that broadcastTicks() does zero DB I/O.
+ * Fires every 500 ms  safe now that broadcastTicks() does zero DB I/O.
  * Previously at 1000 ms and was further delayed by DB write latency
  * (50-200 ms on Railway), causing jerky charts on the frontend.
  *

@@ -44,6 +44,20 @@ public class SettlementService {
                 log.error("Settlement failed for session {}: {}", session.getId(), e.getMessage(), e);
             }
         }
+
+        // FIX B2: recover sessions stuck in SETTLING for more than 60 seconds 
+        // these were left behind by a previous JVM crash mid-settlement.
+        List<TradeSession> stuckSettling = tradeSessionRepository
+            .findByStatusAndUpdatedAtBefore(TradeSessionStatus.SETTLING, Instant.now().minusSeconds(60));
+        for (TradeSession session : stuckSettling) {
+            try {
+                session.setStatus(TradeSessionStatus.ACTIVE);
+                tradeSessionRepository.save(session);
+                settle(session);
+            } catch (Exception e) {
+                log.error("Stuck-session recovery failed for {}: {}", session.getId(), e.getMessage(), e);
+            }
+        }
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -97,7 +111,7 @@ public class SettlementService {
         fresh.setStatus(TradeSessionStatus.COMPLETED);
         tradeSessionRepository.save(fresh);
 
-        // Evict from cache immediately — next tick cycle will not process this session
+        // Evict from cache immediately  next tick cycle will not process this session
         activeSessionCache.onSessionExpired(tenantId, fresh.getPairSymbol(), fresh.getId());
 
         payoutRateService.evictRatesForTenant(tenantId);

@@ -21,19 +21,19 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Zero-DB-read cache for the price tick hot path.
  *
- * HOT PATH  (every 500 ms – 1 s): getRepresentativeSessionsPerPair(), getAllTenantPairKeys()
- *   → pure ConcurrentHashMap reads, no DB, no locks.
+ * HOT PATH  (every 500 ms  1 s): getRepresentativeSessionsPerPair(), getAllTenantPairKeys()
+ *    pure ConcurrentHashMap reads, no DB, no locks.
  *
  * WARM PATH (on buy / settle + 5-min safety refresh):
  *   onSessionCreated(), onSessionExpired(), scheduledRefresh()
- *   → single map mutation or 2 DB reads max.
+ *    single map mutation or 2 DB reads max.
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class ActiveSessionCache {
 
-    // ── internal record ───────────────────────────────────────────────────────
+    //  internal record 
     public record CachedSession(
         UUID      sessionId,
         UUID      tenantId,
@@ -46,19 +46,19 @@ public class ActiveSessionCache {
     private final ConcurrentHashMap<String, CachedSession> sessions =
         new ConcurrentHashMap<>(512);
 
-    // key = "tenantId:symbol" → set of full session keys
+    // key = "tenantId:symbol"  set of full session keys
     private final ConcurrentHashMap<String, Set<String>> pairIndex =
         new ConcurrentHashMap<>(256);
 
-    // All "tenantId:symbol" pairs for enabled global pairs × active tenants.
-    // Refreshed every 5 min — never per-tick.
+    // All "tenantId:symbol" pairs for enabled global pairs  active tenants.
+    // Refreshed every 5 min  never per-tick.
     private volatile Set<String> allTenantPairKeys = Collections.emptySet();
 
     private final TradeSessionRepository tradeSessionRepository;
     private final TradingPairRepository  tradingPairRepository;
     private final TenantRepository       tenantRepository;
 
-    // ── startup ───────────────────────────────────────────────────────────────
+    //  startup 
 
     @PostConstruct
     public void init() {
@@ -68,7 +68,7 @@ public class ActiveSessionCache {
             sessions.size(), allTenantPairKeys.size());
     }
 
-    // ── 5-minute safety net refresh ───────────────────────────────────────────
+    //  5-minute safety net refresh 
 
     @Scheduled(fixedDelay = 300_000)
     @Transactional(readOnly = true)
@@ -77,7 +77,7 @@ public class ActiveSessionCache {
         refreshTenantPairs();
     }
 
-    // ── event-driven mutations ────────────────────────────────────────────────
+    //  event-driven mutations 
 
     public void onSessionCreated(TradeSession session) {
         String sk = sessionKey(session.getTenant().getId(),
@@ -105,7 +105,7 @@ public class ActiveSessionCache {
         }
     }
 
-    // ── hot-path reads ────────────────────────────────────────────────────────
+    //  hot-path reads 
 
     /**
      * Returns one representative CachedSession per tenantId:symbol.
@@ -130,7 +130,7 @@ public class ActiveSessionCache {
         return allTenantPairKeys;
     }
 
-    // ── private helpers ───────────────────────────────────────────────────────
+    //  private helpers 
 
     @Transactional(readOnly = true)
     public void rebuildSessionCache() {

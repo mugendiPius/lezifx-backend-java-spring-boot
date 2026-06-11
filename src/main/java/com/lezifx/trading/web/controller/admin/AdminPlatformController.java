@@ -7,6 +7,7 @@ import com.lezifx.trading.web.dto.request.MarketerWithdrawalConfigRequest;
 import com.lezifx.trading.web.dto.request.SetDarajaCredentialsRequest;
 import com.lezifx.trading.web.dto.request.SetPlatformModeRequest;
 import com.lezifx.trading.web.dto.request.UpdatePlatformSettingsRequest;
+import com.lezifx.trading.web.dto.request.UpdateTenantDomainsRequest;
 import com.lezifx.trading.web.dto.response.AdminPlatformSettingsResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -29,7 +31,7 @@ import java.util.UUID;
 public class AdminPlatformController {
 
     private final AdminPlatformService adminPlatformService;
-    private final PlatformModeService platformModeService;
+    private final PlatformModeService  platformModeService;
 
     @GetMapping("/mode")
     public ResponseEntity<Map<String, String>> getMode() {
@@ -77,5 +79,21 @@ public class AdminPlatformController {
         UUID tenantId = TenantContext.get();
         return ResponseEntity.ok(
             adminPlatformService.configureMarketerWithdrawal(tenantId, request, adminId));
+    }
+
+    @GetMapping("/domains")
+    public ResponseEntity<List<String>> getDomains() {
+        UUID tenantId = TenantContext.get();
+        return ResponseEntity.ok(adminPlatformService.getDomains(tenantId));
+    }
+
+    @PutMapping("/domains")
+    public ResponseEntity<Map<String, String>> updateDomains(
+            @RequestBody UpdateTenantDomainsRequest request,
+            @AuthenticationPrincipal String adminId) {
+        UUID tenantId = TenantContext.get();
+        adminPlatformService.updateDomains(tenantId,
+            request.getDomains() != null ? request.getDomains() : List.of(), adminId);
+        return ResponseEntity.ok(Map.of("message", "Domains updated"));
     }
 }

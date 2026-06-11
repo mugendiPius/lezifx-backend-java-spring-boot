@@ -18,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -26,12 +28,12 @@ import java.util.UUID;
 @Slf4j
 public class AdminPlatformService {
 
-    private final TenantRepository       tenantRepository;
-    private final AuditLogService        auditLogService;
-    private final SimpMessagingTemplate  messagingTemplate;
-    private final AesEncryptionService   aesEncryptionService;
+    private final TenantRepository      tenantRepository;
+    private final AuditLogService       auditLogService;
+    private final SimpMessagingTemplate messagingTemplate;
+    private final AesEncryptionService  aesEncryptionService;
 
-    // ─── Mode ─────────────────────────────────────────────────────────────────
+    // ── Mode ──────────────────────────────────────────────────────────────────
 
     @Transactional
     public void setMode(UUID tenantId, PlatformMode mode, String adminId) {
@@ -47,7 +49,6 @@ public class AdminPlatformService {
             Map.of("mode", oldMode.name()),
             Map.of("mode", mode.name()), null);
 
-        // BUG 4 FIX: broadcast mode change to all connected WS clients
         try {
             PlatformEvent event = PlatformEvent.builder()
                 .event("MODE_CHANGE")
@@ -61,7 +62,7 @@ public class AdminPlatformService {
         }
     }
 
-    // ─── Settings (read) ──────────────────────────────────────────────────────
+    // ── Settings (read) ───────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
     public AdminPlatformSettingsResponse getSettings(UUID tenantId) {
@@ -83,28 +84,27 @@ public class AdminPlatformService {
             .registrationOpen(tenant.getRegistrationOpen())
             .marketerWithdrawalEnabled(tenant.getMarketerWithdrawalEnabled())
             .marketerMaxWithdrawal(tenant.getMarketerMaxWithdrawal())
-                .brandName(tenant.getBrandName())
-                .primaryColor(tenant.getPrimaryColor())
-                .accentColor(tenant.getAccentColor())
-//                .tagline(tenant.getTagline())
-                .logoUrl(tenant.getLogoUrl())
-                .faviconUrl(tenant.getFaviconUrl())
+            .brandName(tenant.getBrandName())
+            .primaryColor(tenant.getPrimaryColor())
+            .accentColor(tenant.getAccentColor())
+            .tagline(tenant.getTagline())
+            .logoUrl(tenant.getLogoUrl())
+            .faviconUrl(tenant.getFaviconUrl())
             .build();
     }
 
-    // ─── Settings (write) ─────────────────────────────────────────────────────
+    // ── Settings (write) ──────────────────────────────────────────────────────
 
     @Transactional
     public void updateSettings(UUID tenantId, UpdatePlatformSettingsRequest req, String adminId) {
         var tenant = tenantRepository.findById(tenantId)
             .orElseThrow(() -> new BusinessException("TENANT_NOT_FOUND", "Tenant not found"));
 
-        // BUG 4 FIX: broadcast per-field events only when value actually changes
-        if (req.getFloorBalance() != null) {
+        if (req.getFloorBalance()        != null) {
             tenant.setFloorBalance(req.getFloorBalance());
             broadcastFloorUpdate(tenantId, req.getFloorBalance());
         }
-        if (req.getKillSwitchActive() != null) {
+        if (req.getKillSwitchActive()    != null) {
             tenant.setKillSwitchActive(req.getKillSwitchActive());
             broadcastKillSwitch(tenantId, req.getKillSwitchActive());
         }
@@ -117,19 +117,55 @@ public class AdminPlatformService {
         if (req.getDemoBalance()         != null) tenant.setDemoBalance(req.getDemoBalance());
         if (req.getKycRequired()         != null) tenant.setKycRequired(req.getKycRequired());
         if (req.getRegistrationOpen()    != null) tenant.setRegistrationOpen(req.getRegistrationOpen());
+        // Branding
+        if (req.getBrandName()    != null && !req.getBrandName().isBlank())
+            tenant.setBrandName(req.getBrandName());
+        if (req.getPrimaryColor() != null && !req.getPrimaryColor().isBlank())
+            tenant.setPrimaryColor(req.getPrimaryColor());
+        if (req.getAccentColor()  != null && !req.getAccentColor().isBlank())
+            tenant.setAccentColor(req.getAccentColor());
+        if (req.getTagline()      != null)
+            tenant.setTagline(req.getTagline().isBlank() ? null : req.getTagline().trim());
+        if (req.getLogoUrl()      != null)
+            tenant.setLogoUrl(req.getLogoUrl().isBlank() ? null : req.getLogoUrl().trim());
+        if (req.getFaviconUrl()   != null)
+            tenant.setFaviconUrl(req.getFaviconUrl().isBlank() ? null : req.getFaviconUrl().trim());
 
-        // Inside your updateSettings method, after the existing limit fields, add:
-        if (req.getBrandName()    != null) tenant.setBrandName(req.getBrandName());
-        if (req.getPrimaryColor() != null) tenant.setPrimaryColor(req.getPrimaryColor());
-        if (req.getAccentColor()  != null) tenant.setAccentColor(req.getAccentColor());
-//        if (req.getTagline()      != null) tenant.setTagline(req.getTagline());
         tenantRepository.save(tenant);
 
         auditLogService.record(tenantId, adminId, "ADMIN", "UPDATE_PLATFORM_SETTINGS",
             "Tenant", tenantId, null, Map.of("updated", req.toString()), null);
     }
 
-    // ─── Daraja ───────────────────────────────────────────────────────────────
+    // ── Domains ───────────────────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public List<String> getDomains(UUID tenantId) {
+        var tenant = tenantRepository.findById(tenantId)
+            .orElseThrow(() -> new BusinessException("TENANT_NOT_FOUND", "Tenant not found"));
+        String[] origins = tenant.getAllowedOrigins();
+        return origins != null ? Arrays.asList(origins) : List.of();
+    }
+
+    @Transactional
+    public void updateDomains(UUID tenantId, List<String> domains, String adminId) {
+        var tenant = tenantRepository.findById(tenantId)
+            .orElseThrow(() -> new BusinessException("TENANT_NOT_FOUND", "Tenant not found"));
+
+        String[] normalised = domains.stream()
+            .map(d -> d.trim().toLowerCase().replaceFirst("^https?://", "").replaceAll("/+$", ""))
+            .filter(d -> !d.isBlank())
+            .distinct()
+            .toArray(String[]::new);
+
+        tenant.setAllowedOrigins(normalised);
+        tenantRepository.save(tenant);
+
+        auditLogService.record(tenantId, adminId, "ADMIN", "UPDATE_DOMAINS",
+            "Tenant", tenantId, null, Map.of("domains", String.join(",", normalised)), null);
+    }
+
+    // ── Daraja ────────────────────────────────────────────────────────────────
 
     @Transactional
     public void setDarajaCredentials(UUID tenantId, SetDarajaCredentialsRequest req, String adminId) {
@@ -151,7 +187,7 @@ public class AdminPlatformService {
             Map.of("shortCode", req.getShortcode() != null ? req.getShortcode() : "unchanged"), null);
     }
 
-    // ─── Marketer withdrawal ──────────────────────────────────────────────────
+    // ── Marketer withdrawal ───────────────────────────────────────────────────
 
     @Transactional
     public AdminPlatformSettingsResponse configureMarketerWithdrawal(
@@ -170,7 +206,7 @@ public class AdminPlatformService {
         return getSettings(tenantId);
     }
 
-    // ─── Private broadcast helpers ────────────────────────────────────────────
+    // ── Private broadcast helpers ─────────────────────────────────────────────
 
     private void broadcastFloorUpdate(UUID tenantId, BigDecimal floorBalance) {
         try {

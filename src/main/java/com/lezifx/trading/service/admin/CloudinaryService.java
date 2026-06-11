@@ -40,7 +40,7 @@ public class CloudinaryService {
             this.cloudinary = new Cloudinary(config);
             log.info("Cloudinary initialized for cloud: {}", cloudName);
         } else {
-            log.warn("Cloudinary not configured — upload will fail if attempted");
+            log.warn("Cloudinary not configured  upload will fail if attempted");
         }
     }
 

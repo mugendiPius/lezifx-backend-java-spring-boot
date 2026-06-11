@@ -5,7 +5,7 @@ import java.util.UUID;
 /**
  * ThreadLocal holder for the current tenant.
  * Set by ApiKeyResolutionFilter on every request.
- * Cleared in the filter finally block — never leaks between requests.
+ * Cleared in the filter finally block  never leaks between requests.
  */
 public final class TenantContext {
 
@@ -21,7 +21,7 @@ public final class TenantContext {
         UUID id = CURRENT.get();
         if (id == null) {
             throw new IllegalStateException(
-                "TenantContext not initialised — request missing X-API-Key header");
+                "TenantContext not initialised  request missing X-API-Key header");
         }
         return id;
     }

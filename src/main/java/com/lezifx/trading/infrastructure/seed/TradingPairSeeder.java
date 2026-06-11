@@ -15,7 +15,7 @@ import java.util.List;
 /**
  * Seeds the 14 canonical global trading pairs on every startup.
  *
- * Strategy: pure JPA — no native SQL, no Flyway, no schema constraints required.
+ * Strategy: pure JPA  no native SQL, no Flyway, no schema constraints required.
  * For each pair we check whether a global row (tenant_id IS NULL) with that symbol
  * already exists; if not we save it. Completely idempotent and re-run safe.
  *
@@ -82,7 +82,7 @@ public class TradingPairSeeder implements ApplicationRunner {
         }
     }
 
-    /** Lightweight value holder — avoids a 14-row constructor soup above. */
+    /** Lightweight value holder  avoids a 14-row constructor soup above. */
     private record SeedPair(
             String symbol, String name,
             String baseAsset, String quoteAsset, String category,

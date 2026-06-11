@@ -13,21 +13,16 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * PayoutRateService
  *
- * FIX: Removed @Cacheable — the cache key never changed so every call
- * returned the same static value, giving the frontend a flat line of rates
- * with no oscillation.
+ * FIX B5: Removed unused ThreadLocalRandom import and variable.
  *
- * Replacement strategy: rates are recomputed each call but pinned to a
- * 60-second window using a per-tenant seed, so:
- *  - All users on the same tenant see the same rate within a minute.
- *  - Rates shift every minute with a ±3 % jitter, matching the frontend mock.
- *  - House-balance and volume adjustments are still applied on top.
+ * Rates are recomputed on each call but pinned to a 60-second window
+ * using a per-tenant deterministic seed, so all users on the same tenant
+ * see the same rate within a given minute and rates shift every minute
+ * with a 3 % jitter.
  */
 @Service
 @RequiredArgsConstructor
@@ -35,7 +30,7 @@ public class PayoutRateService {
 
     private static final List<Integer> ALLOWED_DURATIONS = List.of(30, 60, 120, 300);
 
-    // Jitter amplitude: ±3 % around the computed rate
+    // Jitter amplitude: 3 % around the computed rate
     private static final double JITTER_AMP = 0.03;
 
     private final TenantRepository       tenantRepository;
@@ -46,7 +41,7 @@ public class PayoutRateService {
         var tenant = tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new RuntimeException("Tenant not found: " + tenantId));
 
-        // ── 1. Base payout by duration ────────────────────────────────────────
+        // 1. Base payout by duration
         double basePayout = switch (durationSeconds) {
             case  30 -> 0.70;
             case  60 -> 0.78;
@@ -55,12 +50,12 @@ public class PayoutRateService {
             default  -> 0.70;
         };
 
-        // ── 2. Volume bonus ───────────────────────────────────────────────────
+        // 2. Volume bonus
         long activeSessions = tradeSessionRepository
                 .countByTenantIdAndStatusAndIsMarketerTradeFalse(tenantId, TradeSessionStatus.ACTIVE);
         double volumeBonus = Math.min(activeSessions / 100.0, 0.04);
 
-        // ── 3. House-balance multiplier ───────────────────────────────────────
+        // 3. House-balance multiplier
         BigDecimal houseBalance = tenant.getHouseBalance() != null
                 ? tenant.getHouseBalance() : BigDecimal.ZERO;
         BigDecimal floorBalance = tenant.getFloorBalance() != null
@@ -81,18 +76,13 @@ public class PayoutRateService {
 
         double rawRate = basePayout * balanceMultiplier + volumeBonus;
 
-        // ── 4. Per-minute deterministic jitter ────────────────────────────────
-        // Seed = tenantId hash XOR current minute-epoch so it changes every
-        // 60 seconds but is the same for all users on the same tenant in that
-        // window. This gives the "oscillating rates" the frontend expects.
+        // 4. Per-minute deterministic jitter via LCG seeded on tenantId + minute epoch.
+        //    All users on the same tenant see the same rate within a 60-second window.
         long minuteEpoch = System.currentTimeMillis() / 60_000L;
         long seed = (tenantId.getLeastSignificantBits() ^ tenantId.getMostSignificantBits())
                 ^ (minuteEpoch * 2_654_435_761L)
                 ^ (long) durationSeconds;
 
-        ThreadLocalRandom rng = ThreadLocalRandom.current();
-        // We can't seed ThreadLocalRandom, so use a cheap LCG to derive a
-        // deterministic value from our seed, then map to [-JITTER_AMP, +JITTER_AMP].
         long lcg = (seed * 6_364_136_223_846_793_005L + 1_442_695_040_888_963_407L);
         double jitter = ((double) (lcg & 0xFFFFFFFFL) / 0xFFFFFFFFL - 0.5) * 2.0 * JITTER_AMP;
 
@@ -110,8 +100,7 @@ public class PayoutRateService {
     }
 
     /**
-     * Kept for compatibility with any callers that were evicting the cache.
-     * Now a no-op since we removed @Cacheable.
+     * Kept for compatibility  no-op since @Cacheable was removed.
      */
     public void evictRatesForTenant(UUID tenantId) {
         // no-op

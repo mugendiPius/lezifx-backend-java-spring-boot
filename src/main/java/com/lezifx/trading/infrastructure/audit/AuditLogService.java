@@ -50,7 +50,7 @@ public class AuditLogService {
             adminAuditLogRepository.save(entry);
 
         } catch (Exception e) {
-            log.error("Failed to record audit log — tenantId={}, action={}, error={}",
+            log.error("Failed to record audit log  tenantId={}, action={}, error={}",
                 tenantId, action, e.getMessage(), e);
         }
     }

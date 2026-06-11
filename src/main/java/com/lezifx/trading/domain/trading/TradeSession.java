@@ -21,6 +21,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -95,4 +96,9 @@ public class TradeSession {
 
     @Column(name = "settled_at")
     private Instant settledAt;
+
+    // FIX B2: track last mutation time so orphaned SETTLING rows can be detected
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private Instant updatedAt;
 }

@@ -46,7 +46,7 @@ public class TransactionService {
                 return walletTransactionRepository
                     .findByUserIdAndTypeOrderByCreatedAtDesc(userId, txType, pageable);
             } catch (IllegalArgumentException e) {
-                // unknown type — fall through to unfiltered
+                // unknown type  fall through to unfiltered
             }
         }
 
@@ -86,7 +86,7 @@ public class TransactionService {
 
         BigDecimal totalStaked = walletTransactionRepository.sumStakedByUser(userId);
         if (totalStaked == null) totalStaked = BigDecimal.ZERO;
-        // TRADE_STAKE stored as negative — ABS handled in query, but ensure positive
+        // TRADE_STAKE stored as negative  ABS handled in query, but ensure positive
         totalStaked = totalStaked.abs();
 
         BigDecimal totalProfit = tradeSessionRepository.sumProfitByUser(userId, tenantId);

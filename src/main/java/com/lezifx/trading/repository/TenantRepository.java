@@ -29,7 +29,7 @@ public interface TenantRepository extends JpaRepository<Tenant, UUID> {
     Optional<Tenant> findByAllowedOriginsContaining(@Param("domain") String domain);
 
     /**
-     * Legacy method kept for any existing callers — delegates to array lookup.
+     * Legacy method kept for any existing callers  delegates to array lookup.
      * Will find a tenant only if the domain exists in their allowed_origins.
      */
     default Optional<Tenant> findByCustomDomain(String domain) {

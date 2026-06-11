@@ -62,10 +62,10 @@ public class TenantService {
     private final AuditLogService        auditLogService;
     private final PasswordEncoder        passwordEncoder;
 
-    // ── Create tenant + first admin ──────────────────────────────────────────
+    //  Create tenant + first admin 
 
     public TenantDetailResponse createTenant(CreateTenantRequest req, String createdBy) {
-        // Validate domains — check none are already taken by another tenant
+        // Validate domains  check none are already taken by another tenant
         if (req.getCustomDomains() != null) {
             for (String domain : req.getCustomDomains()) {
                 String normalised = domain.toLowerCase().replaceAll("^https?://", "").replaceAll("/+$", "");
@@ -81,7 +81,7 @@ public class TenantService {
         BigDecimal floorBalance = req.getFloorBalance()  != null ? req.getFloorBalance()  : BigDecimal.valueOf(100_000);
         BigDecimal demoBalance  = req.getDemoBalance()   != null ? req.getDemoBalance()   : BigDecimal.valueOf(10_000);
 
-        // Build allowed_origins from request — normalise each entry
+        // Build allowed_origins from request  normalise each entry
         String[] origins = req.getCustomDomains() == null ? new String[0]
                 : req.getCustomDomains().stream()
                         .map(d -> d.toLowerCase().replaceAll("^https?://", "").replaceAll("/+$", ""))
@@ -155,7 +155,7 @@ public class TenantService {
         return buildDetailResponse(savedTenant, apiKey.getApiKey(), userCount, activeKeys);
     }
 
-    // ── List tenants ─────────────────────────────────────────────────────────
+    //  List tenants 
 
     @Transactional(readOnly = true)
     public Page<TenantSummaryResponse> listTenants(String statusFilter, String search, int page, int size) {
@@ -194,7 +194,7 @@ public class TenantService {
         });
     }
 
-    // ── Get single tenant detail ──────────────────────────────────────────────
+    //  Get single tenant detail 
 
     @Transactional(readOnly = true)
     public TenantDetailResponse getTenantDetail(UUID tenantId) {
@@ -209,7 +209,7 @@ public class TenantService {
         return buildDetailResponse(tenant, firstKey, userCount, activeKeys);
     }
 
-    // ── Update tenant status ──────────────────────────────────────────────────
+    //  Update tenant status 
 
     public void updateTenantStatus(UUID tenantId, TenantStatus status, String adminId) {
         guardMaster(tenantId);
@@ -222,7 +222,7 @@ public class TenantService {
                 Map.of("status", old.name()), Map.of("status", status.name()), null);
     }
 
-    // ── Update tenant settings ────────────────────────────────────────────────
+    //  Update tenant settings 
 
     public void updateTenantSettings(UUID tenantId, UpdateTenantSettingsRequest req, String adminId) {
         guardMaster(tenantId);
@@ -247,7 +247,7 @@ public class TenantService {
                 "UPDATE_TENANT_SETTINGS", "Tenant", tenantId, null, null, null);
     }
 
-    // ── Update allowed origins (SUPER_ADMIN version) ─────────────────────────
+    //  Update allowed origins (SUPER_ADMIN version) 
 
     public void updateAllowedOrigins(UUID tenantId, List<String> domains, String adminId) {
         guardMaster(tenantId);
@@ -263,7 +263,7 @@ public class TenantService {
                 null, Map.of("domains", String.join(", ", origins)), null);
     }
 
-    // ── API Key management ────────────────────────────────────────────────────
+    //  API Key management 
 
     public TenantApiKeyResponse rotateApiKey(UUID tenantId, String keyLabel, String adminId) {
         guardMaster(tenantId);
@@ -306,7 +306,7 @@ public class TenantService {
                 "REVOKE_API_KEY", "TenantApiKey", keyId, null, null, null);
     }
 
-    // ── Daraja credentials ────────────────────────────────────────────────────
+    //  Daraja credentials 
 
     public void setDarajaCredentials(UUID tenantId, SetDarajaCredentialsRequest req, String adminId) {
         guardMaster(tenantId);
@@ -324,7 +324,7 @@ public class TenantService {
                 null, Map.of("environment", req.getEnvironment() != null ? req.getEnvironment() : "unchanged"), null);
     }
 
-    // ── Marketer withdrawal config ────────────────────────────────────────────
+    //  Marketer withdrawal config 
 
     public void configureMarketerWithdrawal(UUID tenantId, MarketerWithdrawalConfigRequest req, String adminId) {
         guardMaster(tenantId);
@@ -337,7 +337,7 @@ public class TenantService {
                 null, Map.of("enabled", req.getEnabled(), "maxWithdrawal", req.getMaxWithdrawal()), null);
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────────
+    //  Private helpers 
 
     private Tenant loadTenant(UUID tenantId) {
         return tenantRepository.findById(tenantId)

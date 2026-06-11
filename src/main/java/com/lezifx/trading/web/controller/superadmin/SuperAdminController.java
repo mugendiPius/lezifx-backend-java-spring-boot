@@ -40,10 +40,10 @@ import java.util.stream.Collectors;
 /**
  * SuperAdmin cross-tenant operations that do not fit TenantManagementController:
  *
- *  GET  /superadmin/tenants/{id}/dashboard  → live snapshot of a tenant's metrics
- *  GET  /superadmin/tenants/{id}/admins     → list ADMIN users for a tenant
- *  POST /superadmin/tenants/{id}/admins     → create / elevate / reset password
- *  PUT  /superadmin/tenants/{id}/domains    → replace allowed_origins for a tenant
+ *  GET  /superadmin/tenants/{id}/dashboard   live snapshot of a tenant's metrics
+ *  GET  /superadmin/tenants/{id}/admins      list ADMIN users for a tenant
+ *  POST /superadmin/tenants/{id}/admins      create / elevate / reset password
+ *  PUT  /superadmin/tenants/{id}/domains     replace allowed_origins for a tenant
  */
 @Slf4j
 @RestController
@@ -62,7 +62,7 @@ public class SuperAdminController {
     private final AuditLogService       auditLogService;
     private final PasswordEncoder       passwordEncoder;
 
-    // ── Tenant dashboard snapshot ─────────────────────────────────────────────
+    //  Tenant dashboard snapshot 
 
     /**
      * Returns the same AdminDashboardResponse as the ADMIN dashboard endpoint,
@@ -78,7 +78,7 @@ public class SuperAdminController {
         return ResponseEntity.ok(adminDashboardService.getDashboard(tenantId));
     }
 
-    // ── Tenant admin list ─────────────────────────────────────────────────────
+    //  Tenant admin list 
 
     /**
      * Lists all users with role ADMIN in the given tenant.
@@ -107,14 +107,14 @@ public class SuperAdminController {
         return ResponseEntity.ok(admins);
     }
 
-    // ── Admin management ──────────────────────────────────────────────────────
+    //  Admin management 
 
     /**
      * Three actions in one endpoint, gated by the `action` field:
      *
-     * CREATE         — creates a brand new ADMIN user in the tenant.
-     * ELEVATE        — promotes an existing PLAYER/MARKETER user to ADMIN.
-     * RESET_PASSWORD — changes an existing user's password (any role).
+     * CREATE          creates a brand new ADMIN user in the tenant.
+     * ELEVATE         promotes an existing PLAYER/MARKETER user to ADMIN.
+     * RESET_PASSWORD  changes an existing user's password (any role).
      *
      * SUPER_ADMIN cannot change operational data (trades, withdrawals, balances).
      * These are purely user management actions.
@@ -260,7 +260,7 @@ public class SuperAdminController {
         };
     }
 
-    // ── Domain management (SUPER_ADMIN override) ──────────────────────────────
+    //  Domain management (SUPER_ADMIN override) 
 
     /**
      * Replaces the allowed_origins list for a tenant.

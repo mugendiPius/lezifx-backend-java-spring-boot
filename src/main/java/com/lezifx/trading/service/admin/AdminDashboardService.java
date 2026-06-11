@@ -59,7 +59,7 @@ public class AdminDashboardService {
         long activeStakersWeek = tradeSessionRepository
             .countSettledRealTradesBetween(tenantId, startOfWeek, Instant.now());
 
-        // Financial stats — all-time
+        // Financial stats  all-time
         BigDecimal totalDeposited = walletTransactionRepository.sumDepositsForTenant(tenantId);
         if (totalDeposited == null) totalDeposited = BigDecimal.ZERO;
 
@@ -70,7 +70,7 @@ public class AdminDashboardService {
         BigDecimal grossProfit = tradeSessionRepository.calculateGrossProfitForTenant(tenantId);
         if (grossProfit == null) grossProfit = BigDecimal.ZERO;
 
-        // Financial stats — today
+        // Financial stats  today
         BigDecimal totalDepositsToday = walletTransactionRepository
             .sumDepositsForTenantSince(tenantId, startOfDay);
         if (totalDepositsToday == null) totalDepositsToday = BigDecimal.ZERO;
@@ -79,7 +79,7 @@ public class AdminDashboardService {
             .sumWithdrawalsForTenantSince(tenantId, startOfDay);
         if (totalWithdrawsToday == null) totalWithdrawsToday = BigDecimal.ZERO;
 
-        // Live stakes — sum of stakes in ACTIVE sessions
+        // Live stakes  sum of stakes in ACTIVE sessions
         BigDecimal totalStakesLive = walletTransactionRepository
             .sumStakesForTenantSince(tenantId, Instant.now().minus(1, ChronoUnit.HOURS));
         if (totalStakesLive == null) totalStakesLive = BigDecimal.ZERO;

@@ -33,7 +33,7 @@ public class TradeSessionResponse {
     private Instant startedAt;
     private Instant expiresAt;
 
-    // Nullable — only present after settlement
+    // Nullable  only present after settlement
     private String outcome;
     private BigDecimal profitAmount;
     private BigDecimal actualExitPrice;

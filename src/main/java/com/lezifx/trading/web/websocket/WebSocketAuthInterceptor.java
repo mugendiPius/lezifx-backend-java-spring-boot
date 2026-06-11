@@ -41,7 +41,7 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
             return message;
         }
 
-        // Resolve API key → tenantId
+        // Resolve API key  tenantId
         String apiKey = accessor.getFirstNativeHeader("X-API-Key");
         String resolvedTenantId = null;
 

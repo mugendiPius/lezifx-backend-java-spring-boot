@@ -162,4 +162,6 @@ public class Tenant {
 
     @Column(name = "marketer_max_withdrawal", precision = 10, scale = 2)
     private BigDecimal marketerMaxWithdrawal;
+
+    private String tagline;
 }

@@ -86,7 +86,7 @@ public class SocialFeedService {
             .isSimulated(true)
             .build();
 
-        // Set tenant ID by reflection-safe approach — set the proxy tenant
+        // Set tenant ID by reflection-safe approach  set the proxy tenant
         event.setTenant(tenantRef);
         event = socialFeedEventRepository.save(event);
         broadcastToTopic(tenantId, event);
