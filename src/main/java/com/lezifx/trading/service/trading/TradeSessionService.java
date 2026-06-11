@@ -28,7 +28,6 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-@Transactional
 public class TradeSessionService {
 
     private static final Set<Integer> ALLOWED_DURATIONS = Set.of(30, 60, 120, 300);
@@ -43,6 +42,7 @@ public class TradeSessionService {
     private final HouseBalanceService    houseBalanceService;
     private final ActiveSessionCache     activeSessionCache;
 
+    @Transactional
     public TradeSessionResponse buy(BuyTradeRequest request, UUID userId, UUID tenantId) {
         if (!ALLOWED_DURATIONS.contains(request.getDurationSeconds())) {
             throw new BusinessException("INVALID_DURATION",

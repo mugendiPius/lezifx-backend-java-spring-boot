@@ -92,7 +92,7 @@ public class WalletService {
     public void creditSettlement(UUID userId, BigDecimal returnAmount,
                                   boolean isDemo, boolean isMarketer,
                                   UUID sessionId, TradeOutcome outcome) {
-        Wallet wallet = walletRepository.findByUserId(userId)
+        Wallet wallet = walletRepository.findByUserIdWithLock(userId)
             .orElseThrow(() -> new BusinessException("WALLET_NOT_FOUND", "Wallet not found"));
 
         BigDecimal balanceBefore;
