@@ -22,6 +22,7 @@ public class CacheConfig {
                 Caffeine.newBuilder()
                         .expireAfterWrite(5, TimeUnit.SECONDS)
                         .maximumSize(500)
+                        .recordStats()
                         .build());
 
         // --- darajaTokens: 55-minute TTL (new for Module 6) ---
@@ -31,6 +32,7 @@ public class CacheConfig {
                 Caffeine.newBuilder()
                         .expireAfterWrite(55, TimeUnit.MINUTES)
                         .maximumSize(100)
+                        .recordStats()
                         .build());
 
         SimpleCacheManager manager = new SimpleCacheManager();

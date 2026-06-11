@@ -51,6 +51,7 @@ public class WalletController {
     private final TradeSessionRepository tradeSessionRepository;
 
     @GetMapping("/balance")
+    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<WalletBalanceResponse> getBalance(
             @AuthenticationPrincipal String userId) {
         UUID userUuid = UUID.fromString(userId);
