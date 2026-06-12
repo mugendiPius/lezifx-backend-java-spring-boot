@@ -1,5 +1,6 @@
 package com.lezifx.trading.web.controller.public_;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lezifx.trading.domain.tenant.Tenant;
 import com.lezifx.trading.repository.TenantApiKeyRepository;
 import com.lezifx.trading.repository.TenantRepository;
@@ -8,11 +9,13 @@ import com.lezifx.trading.web.dto.response.TenantConfigResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @RestController
@@ -20,24 +23,17 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PublicConfigController {
 
-    private static final UUID MASTER_TENANT_ID =
+    private static final UUID   MASTER_TENANT_ID =
             UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final String CACHE_PREFIX      = "domain:config:";
+    private static final long   CACHE_TTL_SECONDS = 30;
 
-    private final TenantRepository       tenantRepository;
-    private final TenantApiKeyRepository tenantApiKeyRepository;
-    private final PlatformModeService    platformModeService;
+    private final TenantRepository              tenantRepository;
+    private final TenantApiKeyRepository        tenantApiKeyRepository;
+    private final PlatformModeService           platformModeService;
+    private final RedisTemplate<String, String> redisTemplate;
+    private final ObjectMapper                  objectMapper;
 
-    /**
-     * Bootstrap endpoint called by every frontend on load.
-     * Resolution order:
-     *   1. Extract domain from X-Domain header, then Origin, then Referer.
-     *   2. Query allowed_origins array  GIN-indexed, very fast.
-     *   3. Fall back to master tenant if no match found.
-     *
-     * This ensures that any registered deployment URL (Render, Vercel, custom)
-     * resolves to the correct tenant, and unknown URLs fall back to master
-     * rather than leaking cross-tenant data.
-     */
     @GetMapping("/config")
     public TenantConfigResponse getConfig(HttpServletRequest request) {
         String domain = resolveDomain(request);
@@ -46,52 +42,62 @@ public class PublicConfigController {
         Tenant tenant = null;
 
         if (domain != null && !domain.isBlank()) {
+            try {
+                String cached = redisTemplate.opsForValue().get(CACHE_PREFIX + domain);
+                if (cached != null) {
+                    log.debug("[PublicConfig] Cache hit for domain: {}", domain);
+                    return objectMapper.readValue(cached, TenantConfigResponse.class);
+                }
+            } catch (Exception e) {
+                log.warn("Redis unavailable for domain lookup, falling back to DB: {}", e.getMessage());
+            }
             tenant = tenantRepository.findByAllowedOriginsContaining(domain).orElse(null);
             if (tenant != null) {
-                log.debug("[PublicConfig] Resolved domain '{}'  tenant '{}'", domain, tenant.getBrandName());
+                log.debug("[PublicConfig] Resolved domain to tenant: {}", tenant.getBrandName());
             }
         }
 
         if (tenant == null) {
-            log.debug("[PublicConfig] Domain '{}' not found  falling back to master tenant", domain);
+            log.debug("[PublicConfig] Falling back to master tenant");
             tenant = tenantRepository.findById(MASTER_TENANT_ID)
                     .orElseThrow(() -> new RuntimeException("Master tenant not found"));
         }
 
-        return buildConfigResponse(tenant);
+        TenantConfigResponse config = buildConfigResponse(tenant);
+
+        if (domain != null && !domain.isBlank()) {
+            try {
+                redisTemplate.opsForValue().set(
+                        CACHE_PREFIX + domain,
+                        objectMapper.writeValueAsString(config),
+                        CACHE_TTL_SECONDS, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                log.warn("Redis write failed for domain config cache: {}", e.getMessage());
+            }
+        }
+
+        return config;
     }
 
-    //  Domain extraction 
-
     private String resolveDomain(HttpServletRequest request) {
-        // 1. Explicit header  frontend can send this for clarity
         String xDomain = request.getHeader("X-Domain");
         if (xDomain != null && !xDomain.isBlank()) return normalise(xDomain.trim());
-
-        // 2. Origin header  present on all CORS requests
         String origin = request.getHeader("Origin");
         if (origin != null && !origin.isBlank()) return normalise(stripProtocol(origin));
-
-        // 3. Referer header  fallback
         String referer = request.getHeader("Referer");
         if (referer != null && !referer.isBlank()) return normalise(stripProtocol(referer));
-
         return null;
     }
 
-    /** Strip https:// or http:// and trailing path. */
     private String stripProtocol(String url) {
         String stripped = url.replaceFirst("^https?://", "");
         int slashIdx = stripped.indexOf('/');
         return slashIdx > 0 ? stripped.substring(0, slashIdx) : stripped;
     }
 
-    /** Lowercase and remove trailing slashes for consistent matching. */
     private String normalise(String domain) {
         return domain.toLowerCase().replaceAll("/+$", "");
     }
-
-    //  Response builder 
 
     private TenantConfigResponse buildConfigResponse(Tenant tenant) {
         String activeApiKey = tenantApiKeyRepository.findByTenantId(tenant.getId())
@@ -102,7 +108,6 @@ public class PublicConfigController {
                 .orElse(null);
 
         String tenantType = MASTER_TENANT_ID.equals(tenant.getId()) ? "MASTER" : "TENANT";
-
         boolean killSwitchActive = Boolean.TRUE.equals(tenant.getKillSwitchActive());
 
         String platformMode;
