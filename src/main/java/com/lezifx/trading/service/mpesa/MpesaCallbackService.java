@@ -104,6 +104,7 @@ public class MpesaCallbackService {
         } catch (Exception e) {
             log.error("Error processing C2B callback: {}", e.getMessage(), e);
             callback.setProcessed(false);
+            callback.setProcessingError(e.getMessage());
         }
         mpesaCallbackRepository.save(callback);
     }
@@ -147,6 +148,7 @@ public class MpesaCallbackService {
         } catch (Exception e) {
             log.error("Error processing B2C result callback: {}", e.getMessage(), e);
             callback.setProcessed(false);
+            callback.setProcessingError(e.getMessage());
         }
         mpesaCallbackRepository.save(callback);
     }
@@ -172,6 +174,7 @@ public class MpesaCallbackService {
         } catch (Exception e) {
             log.error("Error processing B2C timeout: {}", e.getMessage(), e);
             callback.setProcessed(false);
+            callback.setProcessingError(e.getMessage());
         }
         mpesaCallbackRepository.save(callback);
     }

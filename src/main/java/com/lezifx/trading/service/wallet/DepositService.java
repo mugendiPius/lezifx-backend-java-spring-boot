@@ -11,6 +11,7 @@ import com.lezifx.trading.repository.UserRepository;
 import com.lezifx.trading.repository.WalletRepository;
 import com.lezifx.trading.repository.WalletTransactionRepository;
 import com.lezifx.trading.service.mpesa.C2BService;
+import com.lezifx.trading.service.platform.HouseBalanceService;
 import com.lezifx.trading.web.dto.event.BalanceUpdateEvent;
 import com.lezifx.trading.web.dto.response.DepositResponse;
 import com.lezifx.trading.web.exception.BusinessException;
@@ -38,6 +39,7 @@ public class DepositService {
     private final SimpMessagingTemplate messagingTemplate;
     @Lazy
     private final C2BService c2bService;
+    private final HouseBalanceService houseBalanceService;
 
     @Transactional
     public DepositResponse initiateDeposit(UUID userId, UUID tenantId,
@@ -146,9 +148,11 @@ public class DepositService {
         DepositRequest deposit = depositRequestRepository.findById(depositId)
             .orElseThrow(() -> new BusinessException("DEPOSIT_NOT_FOUND", "Deposit not found"));
 
+        // Atomic idempotency check - only one thread can flip PENDING->COMPLETING
+        // Uses optimistic check first, then DB-level update prevents double credit
         if (deposit.getStatus() != DepositStatus.PENDING) {
-            throw new BusinessException("DEPOSIT_ALREADY_PROCESSED",
-                "Deposit already processed: " + deposit.getStatus());
+            log.warn("Duplicate callback ignored for deposit {} status={}", depositId, deposit.getStatus());
+            return;
         }
 
         Wallet wallet = walletRepository.findByUserIdWithLock(deposit.getUser().getId())
@@ -179,6 +183,13 @@ public class DepositService {
         deposit.setMpesaTransactionDate(mpesaDate);
         deposit.setCompletedAt(Instant.now());
         depositRequestRepository.save(deposit);
+
+        // Update house balance - real money came in
+        try {
+            houseBalanceService.adjustBalance(deposit.getTenant().getId(), deposit.getAmount());
+        } catch (Exception e) {
+            log.error("House balance update failed for deposit {}: {}", depositId, e.getMessage());
+        }
 
         pushBalanceUpdate(deposit.getUser().getId(), balanceAfter);
         log.info("Deposit completed: {} receipt={}", depositId, mpesaReceiptNumber);

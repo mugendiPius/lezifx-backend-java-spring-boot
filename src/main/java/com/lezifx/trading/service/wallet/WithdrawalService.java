@@ -11,6 +11,7 @@ import com.lezifx.trading.repository.UserRepository;
 import com.lezifx.trading.repository.WalletRepository;
 import com.lezifx.trading.repository.WalletTransactionRepository;
 import com.lezifx.trading.repository.WithdrawalRequestRepository;
+import com.lezifx.trading.service.mpesa.B2CService;
 import com.lezifx.trading.web.dto.event.BalanceUpdateEvent;
 import com.lezifx.trading.web.dto.response.WithdrawalResponse;
 import com.lezifx.trading.web.exception.BusinessException;
@@ -36,6 +37,8 @@ public class WithdrawalService {
     private final WalletRepository walletRepository;
     private final WalletTransactionRepository walletTransactionRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    @org.springframework.context.annotation.Lazy
+    private final B2CService b2cService;
 
     @Transactional
     public WithdrawalResponse initiateWithdrawal(UUID userId, UUID tenantId,
@@ -168,6 +171,12 @@ public class WithdrawalService {
 
         if (autoApprove) {
             log.info("Auto-approved withdrawal {} for user {}", withdrawal.getId(), userId);
+            final java.util.UUID withdrawalId = withdrawal.getId();
+            try {
+                b2cService.initiateB2c(withdrawalId);
+            } catch (Exception e) {
+                log.error("B2C dispatch failed for auto-approved withdrawal {}: {}", withdrawalId, e.getMessage());
+            }
         }
 
         tx.setReferenceId(withdrawal.getId());

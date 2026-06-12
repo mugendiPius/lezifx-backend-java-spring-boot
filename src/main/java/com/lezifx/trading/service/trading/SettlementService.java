@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -60,6 +61,7 @@ public class SettlementService {
         }
     }
 
+    @Async("settlementExecutor")
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void settle(TradeSession session) {
         TradeSession fresh = tradeSessionRepository.findById(session.getId()).orElse(null);
