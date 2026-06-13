@@ -1,6 +1,8 @@
 package com.lezifx.trading.web.controller.superadmin;
 
 import com.lezifx.trading.domain.enums.KycStatus;
+import com.lezifx.trading.domain.enums.PlatformMode;
+import com.lezifx.trading.domain.enums.TenantStatus;
 import com.lezifx.trading.domain.enums.UserRole;
 import com.lezifx.trading.domain.enums.UserStatus;
 import com.lezifx.trading.domain.user.User;
@@ -10,8 +12,10 @@ import com.lezifx.trading.repository.TenantRepository;
 import com.lezifx.trading.repository.UserRepository;
 import com.lezifx.trading.repository.WalletRepository;
 import com.lezifx.trading.service.admin.AdminDashboardService;
+import com.lezifx.trading.service.admin.AdminPlatformService;
 import com.lezifx.trading.service.superadmin.TenantService;
 import com.lezifx.trading.web.dto.request.ManageTenantAdminRequest;
+import com.lezifx.trading.web.dto.request.UpdatePlatformSettingsRequest;
 import com.lezifx.trading.web.dto.request.UpdateTenantDomainsRequest;
 import com.lezifx.trading.web.dto.response.AdminDashboardResponse;
 import com.lezifx.trading.web.dto.response.TenantAdminResponse;
@@ -55,6 +59,7 @@ public class SuperAdminController {
             UUID.fromString("00000000-0000-0000-0000-000000000001");
 
     private final AdminDashboardService adminDashboardService;
+    private final AdminPlatformService  adminPlatformService;
     private final TenantService         tenantService;
     private final UserRepository        userRepository;
     private final WalletRepository      walletRepository;
@@ -260,26 +265,92 @@ public class SuperAdminController {
         };
     }
 
-    //  Domain management (SUPER_ADMIN override) 
+    //  Emergency per-tenant platform controls
 
     /**
-     * Replaces the allowed_origins list for a tenant.
-     * SUPER_ADMIN uses this if a tenant's admin is locked out or needs
-     * emergency domain correction.
-     * Tenant admins manage their own domains via PUT /admin/platform/domains.
+     * Sets platform mode (WIN / NORMAL / LOSE) for any specific tenant.
+     * SUPER_ADMIN uses this for emergency intervention without impersonating the admin.
      */
-    /** @PutMapping("/tenants/{tenantId}/domains")
-    public ResponseEntity<Map<String, Object>> updateTenantDomains(
+    @PutMapping("/tenants/{tenantId}/platform/mode")
+    public ResponseEntity<Map<String, Object>> setTenantMode(
             @PathVariable UUID tenantId,
-            @RequestBody UpdateTenantDomainsRequest req,
+            @RequestBody Map<String, String> body,
             @AuthenticationPrincipal String superAdminId) {
 
-        tenantService.updateAllowedOrigins(tenantId, req.getDomains(), superAdminId);
+        tenantRepository.findById(tenantId)
+                .orElseThrow(() -> new BusinessException("TENANT_NOT_FOUND", "Tenant not found"));
 
-        return ResponseEntity.ok(Map.of(
-                "message", "Domains updated",
-                "tenantId", tenantId,
-                "domains", req.getDomains()
-        ));
-    }*/
+        String modeStr = body.get("mode");
+        PlatformMode mode;
+        try {
+            mode = PlatformMode.valueOf(modeStr);
+        } catch (Exception e) {
+            throw new BusinessException("INVALID_MODE", "mode must be WIN, NORMAL, or LOSE");
+        }
+
+        adminPlatformService.setMode(tenantId, mode, superAdminId);
+        log.info("SUPER_ADMIN {} set mode={} for tenant {}", superAdminId, mode, tenantId);
+
+        return ResponseEntity.ok(Map.of("tenantId", tenantId, "mode", mode.name()));
+    }
+
+    /**
+     * Activates or deactivates the kill switch for a specific tenant.
+     * SUPER_ADMIN uses this to take a single tenant offline without affecting others.
+     */
+    @PutMapping("/tenants/{tenantId}/platform/kill-switch")
+    public ResponseEntity<Map<String, Object>> setTenantKillSwitch(
+            @PathVariable UUID tenantId,
+            @RequestBody Map<String, Boolean> body,
+            @AuthenticationPrincipal String superAdminId) {
+
+        tenantRepository.findById(tenantId)
+                .orElseThrow(() -> new BusinessException("TENANT_NOT_FOUND", "Tenant not found"));
+
+        Boolean active = body.get("active");
+        if (active == null) throw new BusinessException("MISSING_FIELD", "active (boolean) is required");
+
+        adminPlatformService.updateSettings(
+                tenantId,
+                UpdatePlatformSettingsRequest.builder().killSwitchActive(active).build(),
+                superAdminId
+        );
+        log.info("SUPER_ADMIN {} set killSwitch={} for tenant {}", superAdminId, active, tenantId);
+
+        return ResponseEntity.ok(Map.of("tenantId", tenantId, "killSwitchActive", active));
+    }
+
+    /**
+     * Global emergency shutdown — activates kill switch on ALL active tenants simultaneously.
+     * Use only in platform-wide emergencies (legal, security, infrastructure).
+     */
+    @PostMapping("/emergency/shutdown-all")
+    public ResponseEntity<Map<String, Object>> emergencyShutdownAll(
+            @AuthenticationPrincipal String superAdminId) {
+
+        List<com.lezifx.trading.domain.tenant.Tenant> activeTenants =
+                tenantRepository.findByStatus(TenantStatus.ACTIVE);
+
+        int count = 0;
+        for (var tenant : activeTenants) {
+            if (Boolean.TRUE.equals(tenant.getKillSwitchActive())) continue;
+            try {
+                adminPlatformService.updateSettings(
+                        tenant.getId(),
+                        UpdatePlatformSettingsRequest.builder().killSwitchActive(true).build(),
+                        superAdminId
+                );
+                count++;
+            } catch (Exception e) {
+                log.error("Emergency shutdown failed for tenant {}: {}", tenant.getId(), e.getMessage());
+            }
+        }
+
+        log.warn("SUPER_ADMIN {} triggered EMERGENCY SHUTDOWN — {} tenants taken offline", superAdminId, count);
+        auditLogService.record(MASTER_TENANT_ID, superAdminId, "SUPER_ADMIN",
+                "EMERGENCY_SHUTDOWN_ALL", "Platform", MASTER_TENANT_ID,
+                null, Map.of("tenantsAffected", String.valueOf(count)), null);
+
+        return ResponseEntity.ok(Map.of("message", "Emergency shutdown complete", "tenantsAffected", count));
+    }
 }

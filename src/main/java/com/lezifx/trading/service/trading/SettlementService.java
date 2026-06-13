@@ -124,6 +124,15 @@ public class SettlementService {
             } catch (Exception e) {
                 log.warn("Could not broadcast win for session {}: {}", fresh.getId(), e.getMessage());
             }
+        } else if (outcome == TradeOutcome.LOSS
+                && !Boolean.TRUE.equals(fresh.getIsDemo())
+                && java.util.concurrent.ThreadLocalRandom.current().nextDouble() < 0.4) {
+            // Broadcast ~40% of real losses — keeps feed balanced without flooding with losses
+            try {
+                socialFeedService.broadcastRealLoss(fresh);
+            } catch (Exception e) {
+                log.warn("Could not broadcast loss for session {}: {}", fresh.getId(), e.getMessage());
+            }
         }
 
         try {

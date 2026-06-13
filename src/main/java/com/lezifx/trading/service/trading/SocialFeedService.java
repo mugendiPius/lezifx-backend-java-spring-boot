@@ -30,8 +30,13 @@ public class SocialFeedService {
         "Adhiambo", "Muriuki", "Awino", "Karanja", "Moraa"
     };
 
-    private static final SocialAction[] ACTIONS = {
-        SocialAction.won, SocialAction.staked, SocialAction.cashed
+    // Weighted action pool — staked(40%), lost(20%), won(25%), cashed(10%), deposited(5%)
+    private static final SocialAction[] WEIGHTED_ACTIONS = {
+        SocialAction.staked,   SocialAction.staked,   SocialAction.staked,   SocialAction.staked,
+        SocialAction.won,      SocialAction.won,      SocialAction.won,      SocialAction.won,  SocialAction.won,
+        SocialAction.lost,     SocialAction.lost,     SocialAction.lost,     SocialAction.lost,
+        SocialAction.cashed,   SocialAction.cashed,
+        SocialAction.deposited
     };
 
     private final SimpMessagingTemplate messagingTemplate;
@@ -63,13 +68,34 @@ public class SocialFeedService {
     }
 
     @Transactional
+    public void broadcastRealLoss(TradeSession session) {
+        String displayName = session.getUser().getFullName() != null
+            ? session.getUser().getFullName().split(" ")[0]
+            : "Player";
+
+        SocialFeedEvent event = SocialFeedEvent.builder()
+            .tenant(session.getTenant())
+            .eventType(SocialEventType.SIMULATED)
+            .displayName(displayName)
+            .action(SocialAction.lost)
+            .amount(session.getStakeAmount())
+            .pairSymbol(session.getPairSymbol())
+            .isSimulated(false)
+            .sourceTradeSessionId(session.getId())
+            .build();
+
+        event = socialFeedEventRepository.save(event);
+        broadcastToTopic(session.getTenant().getId(), event);
+    }
+
+    @Transactional
     public void generateAndBroadcastSimulated(UUID tenantId, String pairSymbol) {
         ThreadLocalRandom rng = ThreadLocalRandom.current();
 
         String name = KENYAN_NAMES[rng.nextInt(KENYAN_NAMES.length)];
         BigDecimal amount = BigDecimal.valueOf(200 + rng.nextInt(14801))
             .setScale(2, RoundingMode.HALF_UP);
-        SocialAction action = ACTIONS[rng.nextInt(ACTIONS.length)];
+        SocialAction action = WEIGHTED_ACTIONS[rng.nextInt(WEIGHTED_ACTIONS.length)];
 
         com.lezifx.trading.domain.tenant.Tenant tenantRef =
             new com.lezifx.trading.domain.tenant.Tenant();
