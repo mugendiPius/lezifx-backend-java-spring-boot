@@ -79,17 +79,18 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         java.util.UUID tenantContextId = TenantContext.getOrNull();
 
         if ("SUPER_ADMIN".equals(role)) {
-            // SUPER_ADMIN: if TenantContext not set by ApiKeyResolutionFilter
-            // (i.e. master API key not sent or not matched), fall back to the
-            // tenantId embedded in the JWT. This allows SUPER_ADMIN to hit
-            // /admin/** endpoints for the master tenant without an API key,
-            // and also works when the master API key IS sent (context already set).
-            if (tenantContextId == null && jwtTenantId != null) {
+            // X-Tenant-Override allows SUPER_ADMIN to call /admin/** endpoints
+            // scoped to any tenant by passing that tenant's UUID in the header.
+            String tenantOverride = request.getHeader("X-Tenant-Override");
+            if (tenantOverride != null && !tenantOverride.isBlank()) {
+                try {
+                    TenantContext.set(UUID.fromString(tenantOverride.trim()));
+                } catch (IllegalArgumentException ignored) {}
+            } else if (tenantContextId == null && jwtTenantId != null) {
+                // No override: fall back to JWT tenantId (master tenant).
                 try {
                     TenantContext.set(UUID.fromString(jwtTenantId));
-                } catch (IllegalArgumentException ignored) {
-                    // malformed tenantId in token  let downstream fail naturally
-                }
+                } catch (IllegalArgumentException ignored) {}
             }
         } else {
             // Non-SUPER_ADMIN: enforce that JWT tenant matches the API key tenant

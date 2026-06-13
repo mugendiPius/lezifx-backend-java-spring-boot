@@ -53,7 +53,7 @@ public class DynamicCorsConfigurationSource implements CorsConfigurationSource {
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         cfg.setAllowedHeaders(List.of(
             "Authorization", "X-API-Key", "Content-Type", "X-Domain", "Origin",
-            "Accept", "Cache-Control"
+            "Accept", "Cache-Control", "X-Tenant-Override"
         ));
         cfg.setExposedHeaders(List.of("Authorization"));
         cfg.setAllowCredentials(true);

@@ -10,8 +10,11 @@ import com.lezifx.trading.web.dto.request.SetDarajaCredentialsRequest;
 import com.lezifx.trading.web.dto.request.UpdatePlatformSettingsRequest;
 import com.lezifx.trading.web.dto.response.AdminPlatformSettingsResponse;
 import com.lezifx.trading.web.exception.BusinessException;
+import com.lezifx.trading.web.filter.KillSwitchFilter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +35,11 @@ public class AdminPlatformService {
     private final AuditLogService       auditLogService;
     private final SimpMessagingTemplate messagingTemplate;
     private final AesEncryptionService  aesEncryptionService;
+
+    // @Lazy to avoid circular bean dependency during startup
+    @Lazy
+    @Autowired
+    private KillSwitchFilter killSwitchFilter;
 
     // ── Mode ──────────────────────────────────────────────────────────────────
 
@@ -107,6 +115,7 @@ public class AdminPlatformService {
         if (req.getKillSwitchActive()    != null) {
             tenant.setKillSwitchActive(req.getKillSwitchActive());
             broadcastKillSwitch(tenantId, req.getKillSwitchActive());
+            killSwitchFilter.invalidateCache(tenantId);
         }
         if (req.getAutoWithdrawalLimit() != null) tenant.setAutoWithdrawalLimit(req.getAutoWithdrawalLimit());
         if (req.getMinDeposit()          != null) tenant.setMinDeposit(req.getMinDeposit());
