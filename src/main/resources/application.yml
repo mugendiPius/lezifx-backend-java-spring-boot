@@ -32,16 +32,21 @@ spring:
     enabled: false
 
   mail:
-    host: ${MAIL_HOST:smtp.gmail.com}
+    host: ${MAIL_HOST:smtp-relay.brevo.com}
     port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME:}
-    password: ${MAIL_PASSWORD:}
+    username: ${BREVO_USERNAME:${MAIL_USERNAME:}}
+    password: ${BREVO_SMTP_KEY:${MAIL_PASSWORD:}}
     properties:
       mail:
         smtp:
           auth: true
           starttls:
             enable: true
+            required: true
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
+    test-connection: false
 
   data:
     redis:
@@ -84,6 +89,11 @@ daraja:
   consumer-key: ${DARAJA_CONSUMER_KEY:}
   consumer-secret: ${DARAJA_CONSUMER_SECRET:}
   callback-base-url: ${CALLBACK_BASE_URL:https://localhost:8080}
+
+lezifx:
+  email:
+    from-address: ${EMAIL_FROM_ADDRESS:noreply@lezifx.com}
+    from-name: ${EMAIL_FROM_NAME:LeziFx}
 
 cloudinary:
   cloud-name: ${CLOUDINARY_CLOUD_NAME:}
