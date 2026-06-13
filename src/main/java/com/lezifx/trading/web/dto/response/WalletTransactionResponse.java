@@ -1,5 +1,6 @@
 package com.lezifx.trading.web.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -16,7 +17,9 @@ public class WalletTransactionResponse {
     private BigDecimal amount;
     private BigDecimal balanceBefore;
     private BigDecimal balanceAfter;
+    @JsonProperty("isDemo")
     private boolean isDemo;
+    @JsonProperty("isMarketerTransaction")
     private boolean isMarketerTransaction;
     private UUID referenceId;
     private String referenceType;

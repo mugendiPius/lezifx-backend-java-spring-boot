@@ -1,5 +1,6 @@
 package com.lezifx.trading.web.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -26,5 +27,6 @@ public class BuyTradeRequest {
     @NotNull(message = "Duration is required")
     private Integer durationSeconds;
 
+    @JsonProperty("isDemo")
     private boolean isDemo;
 }

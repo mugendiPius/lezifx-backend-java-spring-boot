@@ -7,6 +7,7 @@ import com.lezifx.trading.web.dto.response.LoginResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -22,7 +23,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class SuperAdminAuthController {
 
-    private static final String MASTER_API_KEY = "lzfx_master_00000000000000000000000000000001";
+    @Value("${superadmin.master-api-key}")
+    private String masterApiKey;
 
     private final AuthService authService;
 
@@ -30,7 +32,7 @@ public class SuperAdminAuthController {
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request,
                                     HttpServletRequest httpRequest) {
         String apiKey = httpRequest.getHeader("X-API-Key");
-        if (!MASTER_API_KEY.equals(apiKey)) {
+        if (!masterApiKey.equals(apiKey)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(Map.of("error", "FORBIDDEN", "message", "Invalid master API key"));
         }
@@ -45,8 +47,8 @@ public class SuperAdminAuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<Map<String, String>> logout(@AuthenticationPrincipal String userId) {
+    public ResponseEntity<Void> logout(@AuthenticationPrincipal String userId) {
         authService.logout(userId);
-        return ResponseEntity.ok(Map.of("message", "Logged out successfully"));
+        return ResponseEntity.noContent().build();
     }
 }

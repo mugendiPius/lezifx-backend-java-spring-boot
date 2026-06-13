@@ -1,5 +1,6 @@
 package com.lezifx.trading.web.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,6 +20,7 @@ public class PlayerProfileResponse {
     private String role;
     private String status;
     private String kycStatus;
+    @JsonProperty("isMarketer")
     private boolean isMarketer;
     private Instant createdAt;
     private BigDecimal liveBalance;

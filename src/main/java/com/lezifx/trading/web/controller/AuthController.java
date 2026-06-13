@@ -21,7 +21,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -57,9 +56,9 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<Map<String, String>> logout(@AuthenticationPrincipal String userId) {
+    public ResponseEntity<Void> logout(@AuthenticationPrincipal String userId) {
         authService.logout(userId);
-        return ResponseEntity.ok(Map.of("message", "Logged out successfully"));
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/me")

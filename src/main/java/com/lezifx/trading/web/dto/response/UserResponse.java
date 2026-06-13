@@ -1,5 +1,6 @@
 package com.lezifx.trading.web.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -21,6 +22,7 @@ public class UserResponse {
     private String phoneNumber;
     private String role;
     private String status;
+    @JsonProperty("isMarketer")
     private boolean isMarketer;
     private Instant createdAt;
 }

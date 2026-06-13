@@ -1,5 +1,5 @@
 package com.lezifx.trading.config;
 
-// MODULE 2 - Security
-// Allows all origins for now (tightened per tenant in prod)
+// CORS is configured in SecurityConfig.corsConfigurationSource().
+// Set FRONTEND_URL (comma-separated) env var to restrict allowed origins in production.
 public class CorsConfig {}
