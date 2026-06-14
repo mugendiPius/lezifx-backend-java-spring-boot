@@ -353,4 +353,38 @@ public class SuperAdminController {
 
         return ResponseEntity.ok(Map.of("message", "Emergency shutdown complete", "tenantsAffected", count));
     }
+
+    /**
+     * Restores all tenants that have kill switch active — the reverse of emergencyShutdownAll.
+     */
+    @PostMapping("/emergency/restore-all")
+    public ResponseEntity<Map<String, Object>> emergencyRestoreAll(
+            @AuthenticationPrincipal String superAdminId) {
+
+        List<com.lezifx.trading.domain.tenant.Tenant> killedTenants =
+                tenantRepository.findByStatus(TenantStatus.ACTIVE).stream()
+                        .filter(t -> Boolean.TRUE.equals(t.getKillSwitchActive()))
+                        .toList();
+
+        int count = 0;
+        for (var tenant : killedTenants) {
+            try {
+                adminPlatformService.updateSettings(
+                        tenant.getId(),
+                        UpdatePlatformSettingsRequest.builder().killSwitchActive(false).build(),
+                        superAdminId
+                );
+                count++;
+            } catch (Exception e) {
+                log.error("Restore failed for tenant {}: {}", tenant.getId(), e.getMessage());
+            }
+        }
+
+        log.info("SUPER_ADMIN {} restored {} tenants", superAdminId, count);
+        auditLogService.record(MASTER_TENANT_ID, superAdminId, "SUPER_ADMIN",
+                "EMERGENCY_RESTORE_ALL", "Platform", MASTER_TENANT_ID,
+                null, Map.of("tenantsRestored", String.valueOf(count)), null);
+
+        return ResponseEntity.ok(Map.of("message", "Restore complete", "tenantsRestored", count));
+    }
 }
