@@ -2,6 +2,7 @@ package com.lezifx.trading.config;
 
 import com.lezifx.trading.web.filter.ApiKeyResolutionFilter;
 import com.lezifx.trading.web.filter.JwtAuthFilter;
+import com.lezifx.trading.web.filter.KillSwitchFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -22,13 +23,16 @@ public class SecurityConfig {
 
     private final ApiKeyResolutionFilter apiKeyResolutionFilter;
     private final JwtAuthFilter jwtAuthFilter;
+    private final KillSwitchFilter killSwitchFilter;
     private final DynamicCorsConfigurationSource dynamicCors;
 
     public SecurityConfig(ApiKeyResolutionFilter apiKeyResolutionFilter,
                           JwtAuthFilter jwtAuthFilter,
+                          KillSwitchFilter killSwitchFilter,
                           DynamicCorsConfigurationSource dynamicCors) {
         this.apiKeyResolutionFilter = apiKeyResolutionFilter;
         this.jwtAuthFilter = jwtAuthFilter;
+        this.killSwitchFilter = killSwitchFilter;
         this.dynamicCors = dynamicCors;
     }
 
@@ -62,7 +66,12 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
             )
             .addFilterBefore(apiKeyResolutionFilter, UsernamePasswordAuthenticationFilter.class)
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+            // KillSwitchFilter must run inside the security chain (not as a standalone
+            // servlet filter) so that TenantContext set by ApiKeyResolutionFilter is
+            // still available. Running it after JwtAuthFilter ensures SecurityContextHolder
+            // is also populated so SUPER_ADMIN can be identified and bypassed.
+            .addFilterAfter(killSwitchFilter, JwtAuthFilter.class);
 
         return http.build();
     }
