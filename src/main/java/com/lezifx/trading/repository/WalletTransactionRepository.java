@@ -94,7 +94,29 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
         @Param("tenantId") UUID tenantId,
         @Param("since") Instant since);
 
-    //  User-level paginated queries 
+    //  Admin — tenant-level filtered list
+
+    @Query("""
+        SELECT wt FROM WalletTransaction wt
+        WHERE wt.tenant.id = :tenantId
+          AND (:type    IS NULL OR wt.type            = :type)
+          AND (:isDemo  IS NULL OR wt.isDemo          = :isDemo)
+          AND (:from    IS NULL OR wt.createdAt       >= :from)
+          AND (:to      IS NULL OR wt.createdAt       <= :to)
+          AND (:userId  IS NULL OR wt.wallet.user.id  = :userId)
+        ORDER BY wt.createdAt DESC
+        """)
+    Page<WalletTransaction> findByTenantFiltered(
+        @Param("tenantId") UUID tenantId,
+        @Param("type")     WalletTransactionType type,
+        @Param("isDemo")   Boolean isDemo,
+        @Param("from")     Instant from,
+        @Param("to")       Instant to,
+        @Param("userId")   UUID userId,
+        Pageable pageable
+    );
+
+    //  User-level paginated queries
 
     @Query("""
         SELECT wt FROM WalletTransaction wt

@@ -24,5 +24,9 @@ public class WalletTransactionResponse {
     private UUID referenceId;
     private String referenceType;
     private String description;
+    // Denormalised user fields — populated on admin/superadmin list endpoints
+    private UUID   userId;
+    private String userEmail;
+    private String userFullName;
     private Instant createdAt;
 }

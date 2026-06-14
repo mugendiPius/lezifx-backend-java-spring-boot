@@ -1,16 +1,21 @@
 package com.lezifx.trading.web.controller.superadmin;
 
+import com.lezifx.trading.domain.audit.AdminAuditLog;
 import com.lezifx.trading.domain.enums.KycStatus;
 import com.lezifx.trading.domain.enums.PlatformMode;
 import com.lezifx.trading.domain.enums.TenantStatus;
 import com.lezifx.trading.domain.enums.UserRole;
 import com.lezifx.trading.domain.enums.UserStatus;
+import com.lezifx.trading.domain.enums.WalletTransactionType;
 import com.lezifx.trading.domain.user.User;
 import com.lezifx.trading.domain.wallet.Wallet;
+import com.lezifx.trading.domain.wallet.WalletTransaction;
 import com.lezifx.trading.infrastructure.audit.AuditLogService;
+import com.lezifx.trading.repository.AdminAuditLogRepository;
 import com.lezifx.trading.repository.TenantRepository;
 import com.lezifx.trading.repository.UserRepository;
 import com.lezifx.trading.repository.WalletRepository;
+import com.lezifx.trading.repository.WalletTransactionRepository;
 import com.lezifx.trading.service.admin.AdminDashboardService;
 import com.lezifx.trading.service.admin.AdminPlatformService;
 import com.lezifx.trading.service.superadmin.TenantService;
@@ -18,11 +23,16 @@ import com.lezifx.trading.web.dto.request.ManageTenantAdminRequest;
 import com.lezifx.trading.web.dto.request.UpdatePlatformSettingsRequest;
 import com.lezifx.trading.web.dto.request.UpdateTenantDomainsRequest;
 import com.lezifx.trading.web.dto.response.AdminDashboardResponse;
+import com.lezifx.trading.web.dto.response.AuditLogResponse;
 import com.lezifx.trading.web.dto.response.TenantAdminResponse;
+import com.lezifx.trading.web.dto.response.WalletTransactionResponse;
 import com.lezifx.trading.web.exception.BusinessException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -33,9 +43,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -58,14 +72,16 @@ public class SuperAdminController {
     private static final UUID MASTER_TENANT_ID =
             UUID.fromString("00000000-0000-0000-0000-000000000001");
 
-    private final AdminDashboardService adminDashboardService;
-    private final AdminPlatformService  adminPlatformService;
-    private final TenantService         tenantService;
-    private final UserRepository        userRepository;
-    private final WalletRepository      walletRepository;
-    private final TenantRepository      tenantRepository;
-    private final AuditLogService       auditLogService;
-    private final PasswordEncoder       passwordEncoder;
+    private final AdminDashboardService      adminDashboardService;
+    private final AdminPlatformService       adminPlatformService;
+    private final TenantService              tenantService;
+    private final UserRepository             userRepository;
+    private final WalletRepository           walletRepository;
+    private final TenantRepository           tenantRepository;
+    private final AuditLogService            auditLogService;
+    private final PasswordEncoder            passwordEncoder;
+    private final AdminAuditLogRepository    auditLogRepository;
+    private final WalletTransactionRepository walletTransactionRepository;
 
     //  Tenant dashboard snapshot 
 
@@ -386,5 +402,110 @@ public class SuperAdminController {
                 null, Map.of("tenantsRestored", String.valueOf(count)), null);
 
         return ResponseEntity.ok(Map.of("message", "Restore complete", "tenantsRestored", count));
+    }
+
+    //  Per-tenant audit logs (SuperAdmin view)
+
+    @GetMapping("/tenants/{tenantId}/audit-logs")
+    public ResponseEntity<Page<AuditLogResponse>> getTenantAuditLogs(
+            @PathVariable UUID tenantId,
+            @RequestParam(required = false) String action,
+            @RequestParam(required = false) UUID actorId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        tenantRepository.findById(tenantId)
+                .orElseThrow(() -> new BusinessException("TENANT_NOT_FOUND", "Tenant not found"));
+
+        int safeSize = Math.min(size, 100);
+        String actionFilter = (action != null && !action.isBlank()) ? action : null;
+        Instant fromInstant = from != null ? from.atStartOfDay(ZoneOffset.UTC).toInstant() : null;
+        Instant toInstant   = to   != null ? to.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant() : null;
+
+        Page<AdminAuditLog> logs = auditLogRepository.findFiltered(
+                tenantId, actionFilter, actorId, fromInstant, toInstant,
+                PageRequest.of(page, safeSize));
+
+        return ResponseEntity.ok(logs.map(this::toAuditLogResponse));
+    }
+
+    @GetMapping("/tenants/{tenantId}/audit-logs/actions")
+    public ResponseEntity<List<String>> getTenantAuditLogActions(@PathVariable UUID tenantId) {
+        tenantRepository.findById(tenantId)
+                .orElseThrow(() -> new BusinessException("TENANT_NOT_FOUND", "Tenant not found"));
+        return ResponseEntity.ok(auditLogRepository.findDistinctActionsByTenant(tenantId));
+    }
+
+    //  Per-tenant transactions (SuperAdmin view)
+
+    @GetMapping("/tenants/{tenantId}/transactions")
+    public ResponseEntity<Page<WalletTransactionResponse>> getTenantTransactions(
+            @PathVariable UUID tenantId,
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) Boolean isDemo,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) UUID userId,
+            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        tenantRepository.findById(tenantId)
+                .orElseThrow(() -> new BusinessException("TENANT_NOT_FOUND", "Tenant not found"));
+
+        int safeSize = Math.min(size, 100);
+
+        WalletTransactionType txType = null;
+        if (type != null && !type.isBlank()) {
+            try { txType = WalletTransactionType.valueOf(type.toUpperCase()); }
+            catch (IllegalArgumentException ignored) { }
+        }
+
+        Instant fromInstant = from != null ? from.atStartOfDay(ZoneOffset.UTC).toInstant() : null;
+        Instant toInstant   = to   != null ? to.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant() : null;
+
+        Page<WalletTransaction> txPage = walletTransactionRepository.findByTenantFiltered(
+                tenantId, txType, isDemo, fromInstant, toInstant, userId,
+                PageRequest.of(page, safeSize));
+
+        return ResponseEntity.ok(txPage.map(this::toTxResponse));
+    }
+
+    private AuditLogResponse toAuditLogResponse(AdminAuditLog log) {
+        return AuditLogResponse.builder()
+                .id(log.getId())
+                .tenantId(log.getTenantId())
+                .actorId(log.getActorId())
+                .actorRole(log.getActorRole())
+                .action(log.getAction())
+                .entityType(log.getEntityType())
+                .entityId(log.getEntityId())
+                .oldValue(log.getOldValue())
+                .newValue(log.getNewValue())
+                .ipAddress(log.getIpAddress())
+                .createdAt(log.getCreatedAt())
+                .build();
+    }
+
+    private WalletTransactionResponse toTxResponse(WalletTransaction wt) {
+        var user = wt.getWallet() != null && wt.getWallet().getUser() != null
+                ? wt.getWallet().getUser() : null;
+        return WalletTransactionResponse.builder()
+                .id(wt.getId())
+                .type(wt.getType().name())
+                .amount(wt.getAmount())
+                .balanceBefore(wt.getBalanceBefore())
+                .balanceAfter(wt.getBalanceAfter())
+                .isDemo(wt.getIsDemo())
+                .isMarketerTransaction(wt.getIsMarketerTransaction())
+                .referenceId(wt.getReferenceId())
+                .referenceType(wt.getReferenceType())
+                .description(wt.getDescription())
+                .userId(user != null ? user.getId() : null)
+                .userEmail(user != null ? user.getEmail() : null)
+                .userFullName(user != null ? user.getFullName() : null)
+                .createdAt(wt.getCreatedAt())
+                .build();
     }
 }
