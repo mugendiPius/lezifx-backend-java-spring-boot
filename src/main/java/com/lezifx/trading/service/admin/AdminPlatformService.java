@@ -185,7 +185,7 @@ public class AdminPlatformService {
         if (req.getConsumerSecret()   != null) tenant.setDarajaConsumerSecret(aesEncryptionService.encrypt(req.getConsumerSecret()));
         if (req.getPasskey()          != null) tenant.setDarajaPasskey(aesEncryptionService.encrypt(req.getPasskey()));
         if (req.getShortcode()        != null) tenant.setDarajaShortcode(req.getShortcode());
-        if (req.getCallbackUrl()      != null) tenant.setDarajaEnvironment(req.getCallbackUrl());
+        if (req.getEnvironment()      != null) tenant.setDarajaEnvironment(req.getEnvironment());
         if (req.getB2cInitiatorName() != null) tenant.setDarajaB2cInitiatorName(req.getB2cInitiatorName());
         if (req.getB2cSecurityCred()  != null) tenant.setDarajaB2cSecurityCred(aesEncryptionService.encrypt(req.getB2cSecurityCred()));
 

@@ -125,6 +125,17 @@ public class WithdrawalService {
                 "Maximum withdrawal is " + tenant.getMaxWithdrawal());
         }
 
+        // Validate B2C credentials before touching the balance.
+        // Consumer key covers C2B config; initiatorName covers B2C-specific config.
+        if (tenant.getDarajaConsumerKey() == null || tenant.getDarajaConsumerKey().isBlank()) {
+            throw new BusinessException("DARAJA_NOT_CONFIGURED",
+                "M-Pesa payments are not yet configured for this platform. Please contact support.");
+        }
+        if (tenant.getDarajaB2cInitiatorName() == null || tenant.getDarajaB2cInitiatorName().isBlank()) {
+            throw new BusinessException("DARAJA_B2C_NOT_CONFIGURED",
+                "M-Pesa withdrawals are not yet configured for this platform. Please contact support.");
+        }
+
         Wallet wallet = walletRepository.findByUserIdWithLock(userId)
             .orElseThrow(() -> new BusinessException("WALLET_NOT_FOUND", "Wallet not found"));
 
@@ -171,11 +182,10 @@ public class WithdrawalService {
         if (autoApprove) {
             log.info("Auto-approved withdrawal {} for user {}", withdrawal.getId(), userId);
             final java.util.UUID withdrawalId = withdrawal.getId();
-            try {
-                applicationContext.getBean(com.lezifx.trading.service.mpesa.B2CService.class).initiateB2c(withdrawalId);
-            } catch (Exception e) {
-                log.error("B2C dispatch failed for auto-approved withdrawal {}: {}", withdrawalId, e.getMessage());
-            }
+            applicationContext.getBean(com.lezifx.trading.service.mpesa.B2CService.class)
+                .initiateB2c(withdrawalId);
+            // Re-read withdrawal — B2CService may have flipped it to FAILED if initiation failed
+            withdrawal = withdrawalRequestRepository.findById(withdrawalId).orElse(withdrawal);
         }
 
         tx.setReferenceId(withdrawal.getId());
@@ -184,9 +194,17 @@ public class WithdrawalService {
 
         pushBalanceUpdate(userId, balanceAfter);
 
-        String message = autoApprove
-            ? "Withdrawal approved and queued for processing"
-            : "Withdrawal submitted and pending admin approval";
+        boolean b2cFailed = autoApprove && withdrawal.getStatus() == WithdrawalStatus.FAILED;
+        String message;
+        if (b2cFailed) {
+            message = withdrawal.getFailureReason() != null
+                ? withdrawal.getFailureReason()
+                : "Withdrawal processing failed. Your balance has been refunded.";
+        } else if (autoApprove) {
+            message = "Withdrawal approved and queued for processing";
+        } else {
+            message = "Withdrawal submitted and pending admin approval";
+        }
 
         return WithdrawalResponse.builder()
             .withdrawalId(withdrawal.getId())

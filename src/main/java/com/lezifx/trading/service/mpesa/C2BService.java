@@ -94,8 +94,15 @@ public class C2BService {
                 deposit.setStatus(DepositStatus.FAILED);
                 deposit.setFailureReason(errorMsg);
             }
+        } catch (com.lezifx.trading.web.exception.BusinessException e) {
+            // Configuration or auth errors — mark failed and propagate so caller can surface to user
+            log.error("STK push config/auth error for deposit {}: {}", depositId, e.getMessage());
+            deposit.setStatus(DepositStatus.FAILED);
+            deposit.setFailureReason(e.getMessage());
+            depositRequestRepository.save(deposit);
+            throw e;
         } catch (Exception e) {
-            log.error("STK push failed for deposit {}: {}", depositId, e.getMessage());
+            log.error("STK push network error for deposit {}: {}", depositId, e.getMessage());
             deposit.setStatus(DepositStatus.FAILED);
             deposit.setFailureReason(e.getMessage());
         }

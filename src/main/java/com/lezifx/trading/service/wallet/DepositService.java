@@ -62,6 +62,13 @@ public class DepositService {
                 "Maximum deposit is " + tenant.getMaxDeposit());
         }
 
+        // Validate Daraja is configured before writing any DB record.
+        // This prevents orphaned PENDING deposits when credentials are missing.
+        if (tenant.getDarajaConsumerKey() == null || tenant.getDarajaConsumerKey().isBlank()) {
+            throw new BusinessException("DARAJA_NOT_CONFIGURED",
+                "M-Pesa payments are not yet configured for this platform. Please contact support.");
+        }
+
         DepositRequest deposit = DepositRequest.builder()
             .tenant(tenant)
             .user(user)
@@ -73,18 +80,20 @@ public class DepositService {
         deposit = depositRequestRepository.save(deposit);
         log.info("Deposit initiated: {} for user {}", deposit.getId(), userId);
 
-        try {
-            c2bService.initiateStk(deposit.getId());
-        } catch (Exception e) {
-            log.warn("STK push failed for deposit {}: {}", deposit.getId(), e.getMessage());
-            // Don't fail the deposit initiation  STK is best-effort
-        }
+        c2bService.initiateStk(deposit.getId());
+
+        // Re-read the deposit after initiateStk — C2BService may have flipped it to FAILED
+        // (bad credentials, Safaricom rejection, etc.) and we must return the real status.
+        deposit = depositRequestRepository.findById(deposit.getId()).orElse(deposit);
+        boolean failed = deposit.getStatus() == DepositStatus.FAILED;
 
         return DepositResponse.builder()
             .depositId(deposit.getId())
             .amount(amount)
-            .status(DepositStatus.PENDING.name())
-            .message("Check your phone to complete the payment")
+            .status(deposit.getStatus().name())
+            .message(failed
+                ? (deposit.getFailureReason() != null ? deposit.getFailureReason() : "Payment initiation failed. Please try again.")
+                : "Check your phone to complete the payment")
             .createdAt(deposit.getCreatedAt())
             .build();
     }

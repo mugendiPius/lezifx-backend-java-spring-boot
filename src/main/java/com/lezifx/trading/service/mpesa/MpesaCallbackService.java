@@ -65,6 +65,8 @@ public class MpesaCallbackService {
                 return;
             }
 
+            callback.setTenantId(deposit.getTenant().getId());
+
             if (resultCode == 0) {
                 Map<String, Object> metadata =
                     (Map<String, Object>) stkCallback.get("CallbackMetadata");
@@ -122,6 +124,8 @@ public class MpesaCallbackService {
 
             WithdrawalRequest withdrawal = withdrawalRequestRepository.findById(withdrawalId)
                 .orElseThrow(() -> new RuntimeException("Withdrawal not found: " + withdrawalId));
+
+            callback.setTenantId(withdrawal.getTenant().getId());
 
             if (resultCode == 0) {
                 String receipt = null;

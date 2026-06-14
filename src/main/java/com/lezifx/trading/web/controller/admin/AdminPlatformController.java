@@ -2,6 +2,7 @@ package com.lezifx.trading.web.controller.admin;
 
 import com.lezifx.trading.infrastructure.context.TenantContext;
 import com.lezifx.trading.service.admin.AdminPlatformService;
+import com.lezifx.trading.service.mpesa.DarajaAuthService;
 import com.lezifx.trading.service.platform.PlatformModeService;
 import com.lezifx.trading.web.dto.request.MarketerWithdrawalConfigRequest;
 import com.lezifx.trading.web.dto.request.SetDarajaCredentialsRequest;
@@ -32,6 +33,7 @@ public class AdminPlatformController {
 
     private final AdminPlatformService adminPlatformService;
     private final PlatformModeService  platformModeService;
+    private final DarajaAuthService    darajaAuthService;
 
     @GetMapping("/mode")
     public ResponseEntity<Map<String, String>> getMode() {
@@ -61,6 +63,30 @@ public class AdminPlatformController {
         UUID tenantId = TenantContext.get();
         adminPlatformService.updateSettings(tenantId, request, adminId);
         return ResponseEntity.ok(Map.of("message", "Settings updated"));
+    }
+
+    @GetMapping("/daraja/test")
+    public ResponseEntity<Map<String, Object>> testDarajaCredentials() {
+        UUID tenantId = TenantContext.get();
+        try {
+            String token = darajaAuthService.getAccessToken(tenantId);
+            // Only expose that auth succeeded — never return the token itself
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Daraja credentials are valid — OAuth token obtained successfully"
+            ));
+        } catch (com.lezifx.trading.web.exception.BusinessException e) {
+            return ResponseEntity.ok(Map.of(
+                "success", false,
+                "message", e.getMessage(),
+                "code", e.getCode()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.ok(Map.of(
+                "success", false,
+                "message", "Connection to Safaricom failed: " + e.getMessage()
+            ));
+        }
     }
 
     @PutMapping("/daraja")
