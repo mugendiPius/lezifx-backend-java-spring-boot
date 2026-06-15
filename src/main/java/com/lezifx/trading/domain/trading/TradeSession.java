@@ -97,6 +97,12 @@ public class TradeSession {
     @Column(name = "settled_at")
     private Instant settledAt;
 
+    @Column(name = "path_type", length = 20)
+    private String pathType;
+
+    @Column(name = "pivot_price", precision = 20, scale = 6)
+    private BigDecimal pivotPrice;
+
     // FIX B2: track last mutation time so orphaned SETTLING rows can be detected
     @UpdateTimestamp
     @Column(name = "updated_at")

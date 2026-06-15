@@ -6,6 +6,7 @@ import com.lezifx.trading.repository.TenantRepository;
 import com.lezifx.trading.repository.TradingPairRepository;
 import com.lezifx.trading.repository.TradeSessionRepository;
 import com.lezifx.trading.repository.UserRepository;
+import com.lezifx.trading.domain.enums.PricePathType;
 import com.lezifx.trading.service.platform.HouseBalanceService;
 import com.lezifx.trading.service.wallet.WalletService;
 import com.lezifx.trading.web.dto.request.BuyTradeRequest;
@@ -39,6 +40,7 @@ public class TradeSessionService {
     private final WalletService          walletService;
     private final PriceGeneratorService  priceGeneratorService;
     private final PayoutRateService      payoutRateService;
+    private final UserTradeStatsService  userTradeStatsService;
     private final HouseBalanceService    houseBalanceService;
     private final ActiveSessionCache     activeSessionCache;
 
@@ -89,19 +91,30 @@ public class TradeSessionService {
         long allActive = tradeSessionRepository
             .countByTenantIdAndStatusAndIsMarketerTradeFalse(tenantId, TradeSessionStatus.ACTIVE);
 
-        boolean    isMarketer       = Boolean.TRUE.equals(user.getIsMarketer());
-        BigDecimal entryPrice       = priceGeneratorService.getCurrentPrice(tenantId, request.getPairSymbol());
-        BigDecimal houseRatio       = houseBalanceService.getHouseRatio(tenantId);
-        BigDecimal lockedPayoutRate = payoutRateService.getPayoutRate(tenantId, request.getDurationSeconds());
+        boolean    isMarketer = Boolean.TRUE.equals(user.getIsMarketer());
+        boolean    isDemo     = request.isDemo();
+        BigDecimal entryPrice = priceGeneratorService.getCurrentPrice(tenantId, request.getPairSymbol());
+        BigDecimal houseRatio = houseBalanceService.getHouseRatio(tenantId);
 
-        BigDecimal sealedExitPrice = priceGeneratorService.computeSealedExitPrice(
+        UserTradeStatsService.UserTradeStats userStats =
+            userTradeStatsService.getStats(userId, tenantId, isDemo);
+
+        BigDecimal lockedPayoutRate = payoutRateService.getPayoutRate(
+            tenantId, userId, request.getDurationSeconds(), userStats);
+
+        PriceGeneratorService.SealedTradeOutcome sealed = priceGeneratorService.computeSealedExitPrice(
             request.getPairSymbol(),
             entryPrice,
             request.getDurationSeconds(),
             tenant.getPlatformMode(),
+            isDemo,
             (int) allActive,
-            houseRatio
+            houseRatio,
+            userStats.consecutiveLosses(),
+            false
         );
+
+        BigDecimal sealedExitPrice = sealed.exitPrice();
 
         // FIX B3: save session BEFORE deducting wallet so session.getId() is available
         //         as the reference on the wallet transaction.
@@ -110,11 +123,13 @@ public class TradeSessionService {
             .tenant(tenant)
             .user(user)
             .pairSymbol(request.getPairSymbol())
-            .isDemo(request.isDemo())
+            .isDemo(isDemo)
             .isMarketerTrade(isMarketer)
             .stakeAmount(request.getStakeAmount())
             .entryPrice(entryPrice)
             .sealedExitPrice(sealedExitPrice)
+            .pivotPrice(sealed.pivotPrice())
+            .pathType(sealed.pathType().name())
             .lockedPayoutRate(lockedPayoutRate)
             .durationSeconds(request.getDurationSeconds())
             .status(TradeSessionStatus.ACTIVE)
@@ -169,6 +184,7 @@ public class TradeSessionService {
             .entryPrice(session.getEntryPrice())
             .lockedPayoutRate(session.getLockedPayoutRate())
             .durationSeconds(session.getDurationSeconds())
+            .pathType(session.getPathType())
             .status(session.getStatus().name())
             .startedAt(session.getStartedAt())
             .expiresAt(session.getExpiresAt());

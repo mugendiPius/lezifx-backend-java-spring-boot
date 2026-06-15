@@ -109,4 +109,43 @@ public interface TradeSessionRepository extends JpaRepository<TradeSession, UUID
               AND ts.status = 'COMPLETED' AND ts.outcome = 'WIN' AND ts.isDemo = false
             """)
     BigDecimal sumProfitByUser(@Param("userId") UUID userId, @Param("tenantId") UUID tenantId);
+
+    @Query("""
+            SELECT COUNT(ts) FROM TradeSession ts
+            WHERE ts.user.id = :userId AND ts.tenant.id = :tenantId
+              AND ts.status = 'COMPLETED' AND ts.isDemo = :isDemo
+              AND ts.outcome = 'LOSS'
+              AND ts.settledAt > COALESCE(
+                  (SELECT MAX(ts2.settledAt) FROM TradeSession ts2
+                   WHERE ts2.user.id = :userId AND ts2.tenant.id = :tenantId
+                     AND ts2.status = 'COMPLETED' AND ts2.isDemo = :isDemo
+                     AND ts2.outcome = 'WIN'),
+                  :epoch)
+            """)
+    long countConsecutiveLosses(
+            @Param("userId")   UUID userId,
+            @Param("tenantId") UUID tenantId,
+            @Param("isDemo")   boolean isDemo,
+            @Param("epoch")    java.time.Instant epoch);
+
+    @Query("""
+            SELECT COUNT(ts) FROM TradeSession ts
+            WHERE ts.user.id = :userId AND ts.tenant.id = :tenantId
+              AND ts.settledAt >= :since
+            """)
+    long countTradesSince(
+            @Param("userId")   UUID userId,
+            @Param("tenantId") UUID tenantId,
+            @Param("since")    java.time.Instant since);
+
+    @Query("""
+            SELECT ts.settledAt FROM TradeSession ts
+            WHERE ts.user.id = :userId AND ts.tenant.id = :tenantId
+              AND ts.status = 'COMPLETED' AND ts.isDemo = false
+            ORDER BY ts.settledAt DESC
+            """)
+    List<java.time.Instant> findLastRealTradeAt(
+            @Param("userId")   UUID userId,
+            @Param("tenantId") UUID tenantId,
+            org.springframework.data.domain.Pageable pageable);
 }

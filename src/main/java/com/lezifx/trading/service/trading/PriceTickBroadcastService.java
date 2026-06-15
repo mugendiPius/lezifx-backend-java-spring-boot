@@ -59,7 +59,10 @@ public class PriceTickBroadcastService {
                 BigDecimal next = priceGeneratorService.generateBridgeTick(
                     current,
                     cs.sealedExitPrice(),
+                    cs.pivotPrice(),
+                    cs.pathType(),
                     ticksLeft,
+                    cs.totalTicks(),
                     priceGeneratorService.getVolatility(symbol)
                 );
 

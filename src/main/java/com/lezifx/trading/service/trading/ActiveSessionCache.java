@@ -1,5 +1,6 @@
 package com.lezifx.trading.service.trading;
 
+import com.lezifx.trading.domain.enums.PricePathType;
 import com.lezifx.trading.domain.enums.TenantStatus;
 import com.lezifx.trading.domain.enums.TradeSessionStatus;
 import com.lezifx.trading.domain.trading.TradeSession;
@@ -33,13 +34,16 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class ActiveSessionCache {
 
-    //  internal record 
+    //  internal record
     public record CachedSession(
-        UUID      sessionId,
-        UUID      tenantId,
-        String    symbol,
-        BigDecimal sealedExitPrice,
-        Instant   expiresAt
+        UUID         sessionId,
+        UUID         tenantId,
+        String       symbol,
+        BigDecimal   sealedExitPrice,
+        BigDecimal   pivotPrice,
+        PricePathType pathType,
+        int          totalTicks,
+        Instant      expiresAt
     ) {}
 
     // key = "tenantId:symbol:sessionId"
@@ -84,11 +88,21 @@ public class ActiveSessionCache {
                                session.getPairSymbol(), session.getId());
         String pk = pairKey(session.getTenant().getId(), session.getPairSymbol());
 
+        PricePathType pathType = session.getPathType() != null
+            ? PricePathType.valueOf(session.getPathType())
+            : PricePathType.STRAIGHT_WIN;
+
+        int totalTicks = session.getDurationSeconds() != null
+            ? session.getDurationSeconds() * 2 : 60;
+
         sessions.put(sk, new CachedSession(
             session.getId(),
             session.getTenant().getId(),
             session.getPairSymbol(),
             session.getSealedExitPrice(),
+            session.getPivotPrice(),
+            pathType,
+            totalTicks,
             session.getExpiresAt()
         ));
         pairIndex.computeIfAbsent(pk, k -> ConcurrentHashMap.newKeySet()).add(sk);
@@ -144,9 +158,14 @@ public class ActiveSessionCache {
             for (TradeSession s : active) {
                 String sk = sessionKey(s.getTenant().getId(), s.getPairSymbol(), s.getId());
                 String pk = pairKey(s.getTenant().getId(), s.getPairSymbol());
+                PricePathType pt = s.getPathType() != null
+                    ? PricePathType.valueOf(s.getPathType())
+                    : PricePathType.STRAIGHT_WIN;
+                int tt = s.getDurationSeconds() != null ? s.getDurationSeconds() * 2 : 60;
                 CachedSession cs = new CachedSession(
                     s.getId(), s.getTenant().getId(),
-                    s.getPairSymbol(), s.getSealedExitPrice(), s.getExpiresAt()
+                    s.getPairSymbol(), s.getSealedExitPrice(),
+                    s.getPivotPrice(), pt, tt, s.getExpiresAt()
                 );
                 newSessions.put(sk, cs);
                 newIndex.computeIfAbsent(pk, k -> ConcurrentHashMap.newKeySet()).add(sk);

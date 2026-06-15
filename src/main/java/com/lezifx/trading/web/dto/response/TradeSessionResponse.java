@@ -33,6 +33,8 @@ public class TradeSessionResponse {
     private Instant startedAt;
     private Instant expiresAt;
 
+    private String pathType;
+
     // Nullable  only present after settlement
     private String outcome;
     private BigDecimal profitAmount;
