@@ -4,6 +4,7 @@ import com.lezifx.trading.domain.enums.TradeSessionStatus;
 import com.lezifx.trading.domain.enums.WalletTransactionType;
 import com.lezifx.trading.domain.wallet.WalletTransaction;
 import com.lezifx.trading.infrastructure.context.TenantContext;
+import com.lezifx.trading.repository.DepositRequestRepository;
 import com.lezifx.trading.repository.TenantRepository;
 import com.lezifx.trading.repository.TradeSessionRepository;
 import com.lezifx.trading.repository.UserRepository;
@@ -16,6 +17,7 @@ import com.lezifx.trading.web.dto.request.DepositInitiateRequest;
 import com.lezifx.trading.web.dto.request.MockDepositRequest;
 import com.lezifx.trading.web.dto.request.WithdrawRequest;
 import com.lezifx.trading.web.dto.response.DepositResponse;
+import com.lezifx.trading.web.dto.response.DepositStatusResponse;
 import com.lezifx.trading.web.dto.response.WalletBalanceResponse;
 import com.lezifx.trading.web.dto.response.WalletTransactionResponse;
 import com.lezifx.trading.web.dto.response.WithdrawalResponse;
@@ -27,6 +29,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -49,6 +52,7 @@ public class WalletController {
     private final TenantRepository tenantRepository;
     private final WalletTransactionRepository walletTransactionRepository;
     private final TradeSessionRepository tradeSessionRepository;
+    private final DepositRequestRepository depositRequestRepository;
 
     @GetMapping("/balance")
     @org.springframework.transaction.annotation.Transactional
@@ -187,5 +191,28 @@ public class WalletController {
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(
             transactionService.getWithdrawals(UUID.fromString(userId), page, size));
+    }
+
+    @GetMapping("/deposits/{depositId}")
+    public ResponseEntity<DepositStatusResponse> getDepositStatus(
+            @PathVariable UUID depositId,
+            @AuthenticationPrincipal String userId) {
+        UUID userUuid = UUID.fromString(userId);
+        var deposit = depositRequestRepository.findById(depositId)
+            .orElseThrow(() -> new BusinessException("DEPOSIT_NOT_FOUND", "Deposit not found"));
+
+        if (!deposit.getUser().getId().equals(userUuid)) {
+            throw new BusinessException("FORBIDDEN", "Access denied");
+        }
+
+        return ResponseEntity.ok(DepositStatusResponse.builder()
+            .depositId(deposit.getId())
+            .status(deposit.getStatus().name())
+            .amount(deposit.getAmount())
+            .mpesaReceiptNumber(deposit.getMpesaReceiptNumber())
+            .failureReason(deposit.getFailureReason())
+            .createdAt(deposit.getCreatedAt())
+            .completedAt(deposit.getCompletedAt())
+            .build());
     }
 }
