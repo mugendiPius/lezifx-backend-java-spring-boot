@@ -74,7 +74,7 @@ jwt:
 superadmin:
   bootstrap-email: ${SUPER_ADMIN_EMAIL:admin@lezifx.com}
   bootstrap-password: ${SUPER_ADMIN_PASSWORD:changeme}
-  master-api-key: ${SUPER_ADMIN_API_KEY:lzfx_master_00000000000000000000000000000001}
+  master-api-key: ${SUPER_ADMIN_API_KEY:lzfx_master_lezifx2024superadminkey9x7z}
 
 encryption:
   key: ${ENCRYPTION_KEY:dev-encryption-key-change-in-prod}
@@ -88,7 +88,7 @@ daraja:
   base-url: ${DARAJA_BASE_URL:https://api.safaricom.co.ke}
   consumer-key: ${DARAJA_CONSUMER_KEY:}
   consumer-secret: ${DARAJA_CONSUMER_SECRET:}
-  callback-base-url: ${CALLBACK_BASE_URL:https://localhost:8080}
+  callback-base-url: ${CALLBACK_BASE_URL:https://lezifx-backend-java-spring-boot-production.up.railway.app}
 
 lezifx:
   email:

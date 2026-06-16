@@ -19,7 +19,7 @@ public class AesEncryptionService {
     private static final int IV_LENGTH = 12;
     private static final int TAG_LENGTH_BIT = 128;
 
-    @Value("${encryption.key:defaultkey12345678901234567890123}")
+    @Value("${encryption.key}")
     private String encryptionKey;
 
     private byte[] keyBytes() {

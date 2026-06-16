@@ -12,6 +12,7 @@ import com.lezifx.trading.repository.WalletRepository;
 import com.lezifx.trading.repository.WalletTransactionRepository;
 import com.lezifx.trading.repository.WithdrawalRequestRepository;
 import org.springframework.context.ApplicationContext;
+import com.lezifx.trading.service.platform.HouseBalanceService;
 import com.lezifx.trading.web.dto.event.BalanceUpdateEvent;
 import com.lezifx.trading.web.dto.response.WithdrawalResponse;
 import com.lezifx.trading.web.exception.BusinessException;
@@ -38,6 +39,7 @@ public class WithdrawalService {
     private final WalletTransactionRepository walletTransactionRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final ApplicationContext applicationContext;
+    private final HouseBalanceService houseBalanceService;
 
     @Transactional
     public WithdrawalResponse initiateWithdrawal(UUID userId, UUID tenantId,
@@ -215,6 +217,38 @@ public class WithdrawalService {
             .build();
     }
 
+    /**
+     * Called by MpesaCallbackService when B2C result comes back successful.
+     * Sets the withdrawal to COMPLETED, records the M-Pesa receipt, and
+     * reduces the tenant house balance (cash has physically left the business).
+     */
+    @Transactional
+    public void completeWithdrawal(UUID withdrawalId, String mpesaReceiptNumber) {
+        WithdrawalRequest withdrawal = withdrawalRequestRepository.findById(withdrawalId)
+            .orElseThrow(() -> new BusinessException("WITHDRAWAL_NOT_FOUND", "Withdrawal not found"));
+
+        if (withdrawal.getStatus() == WithdrawalStatus.COMPLETED) {
+            log.warn("completeWithdrawal called on already-COMPLETED withdrawal {}", withdrawalId);
+            return;
+        }
+
+        withdrawal.setStatus(WithdrawalStatus.COMPLETED);
+        withdrawal.setMpesaReceiptNumber(mpesaReceiptNumber);
+        withdrawal.setCompletedAt(Instant.now());
+        withdrawalRequestRepository.save(withdrawal);
+
+        // Cash has physically left — reduce house balance to keep it accurate.
+        try {
+            houseBalanceService.adjustBalance(
+                withdrawal.getTenant().getId(), withdrawal.getAmount().negate());
+        } catch (Exception e) {
+            log.error("House balance update failed after withdrawal {} completed: {}",
+                withdrawalId, e.getMessage());
+        }
+
+        log.info("Withdrawal {} completed, receipt={}", withdrawalId, mpesaReceiptNumber);
+    }
+
     @Transactional
     public void refundFailedWithdrawal(UUID withdrawalId) {
         WithdrawalRequest withdrawal = withdrawalRequestRepository.findById(withdrawalId)
@@ -293,6 +327,26 @@ public class WithdrawalService {
         }
 
         log.info("Withdrawal {} refunded to user {}", withdrawalId, userId);
+    }
+
+    /**
+     * Called by the admin approval flow to reject and refund a pending withdrawal.
+     */
+    @Transactional
+    public void rejectWithdrawal(UUID withdrawalId, String reason) {
+        WithdrawalRequest withdrawal = withdrawalRequestRepository.findById(withdrawalId)
+            .orElseThrow(() -> new BusinessException("WITHDRAWAL_NOT_FOUND", "Withdrawal not found"));
+
+        if (withdrawal.getStatus() != WithdrawalStatus.PENDING) {
+            throw new BusinessException("NOT_REJECTABLE",
+                "Only PENDING withdrawals can be rejected, current status: " + withdrawal.getStatus());
+        }
+
+        withdrawal.setStatus(WithdrawalStatus.REJECTED);
+        withdrawal.setFailureReason(reason);
+        withdrawalRequestRepository.save(withdrawal);
+
+        refundFailedWithdrawal(withdrawalId);
     }
 
     private void pushBalanceUpdate(UUID userId, BigDecimal newBalance) {

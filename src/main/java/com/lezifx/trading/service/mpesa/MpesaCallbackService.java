@@ -130,22 +130,25 @@ public class MpesaCallbackService {
             if (resultCode == 0) {
                 String receipt = null;
                 Map<String, Object> resultParams = (Map<String, Object>) result.get("ResultParameters");
-                List<Map<String, Object>> paramList =
-                    (List<Map<String, Object>>) resultParams.get("ResultParameter");
-                for (Map<String, Object> param : paramList) {
-                    if ("TransactionReceipt".equals(param.get("Key"))) {
-                        receipt = String.valueOf(param.get("Value"));
-                        break;
+                if (resultParams != null) {
+                    List<Map<String, Object>> paramList =
+                        (List<Map<String, Object>>) resultParams.get("ResultParameter");
+                    if (paramList != null) {
+                        for (Map<String, Object> param : paramList) {
+                            if ("TransactionReceipt".equals(param.get("Key"))) {
+                                receipt = String.valueOf(param.get("Value"));
+                                break;
+                            }
+                        }
                     }
                 }
-                withdrawal.setStatus(WithdrawalStatus.COMPLETED);
-                withdrawal.setMpesaReceiptNumber(receipt);
-                withdrawal.setCompletedAt(Instant.now());
-                withdrawalRequestRepository.save(withdrawal);
+                // completeWithdrawal sets COMPLETED status + reduces house balance
+                withdrawalService.completeWithdrawal(withdrawalId, receipt);
                 log.info("B2C withdrawal {} completed, receipt={}", withdrawalId, receipt);
             } else {
+                String resultDesc = String.valueOf(result.get("ResultDesc"));
+                log.info("B2C withdrawal {} failed (code={}): {}", withdrawalId, resultCode, resultDesc);
                 withdrawalService.refundFailedWithdrawal(withdrawalId);
-                log.info("B2C withdrawal {} failed, refunded", withdrawalId);
             }
 
             callback.setProcessed(true);
@@ -169,8 +172,20 @@ public class MpesaCallbackService {
                     if (refItemObj instanceof Map<?, ?> refItem) {
                         UUID withdrawalId = UUID.fromString(
                             String.valueOf(((Map<?, ?>) refItem).get("Value")));
-                        log.warn("B2C timeout for withdrawal {}, initiating refund", withdrawalId);
-                        withdrawalService.refundFailedWithdrawal(withdrawalId);
+
+                        // Guard: timeout callbacks can arrive late, after a successful result.
+                        // Only refund if the withdrawal has not already been completed.
+                        WithdrawalRequest withdrawal = withdrawalRequestRepository
+                            .findById(withdrawalId).orElse(null);
+                        if (withdrawal == null) {
+                            log.warn("B2C timeout: withdrawal {} not found, ignoring", withdrawalId);
+                        } else if (withdrawal.getStatus() == WithdrawalStatus.COMPLETED) {
+                            log.warn("B2C timeout arrived late for already-COMPLETED withdrawal {}, ignoring",
+                                withdrawalId);
+                        } else {
+                            log.warn("B2C timeout for withdrawal {}, initiating refund", withdrawalId);
+                            withdrawalService.refundFailedWithdrawal(withdrawalId);
+                        }
                     }
                 }
             }
