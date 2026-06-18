@@ -119,12 +119,6 @@ management:
     readinessstate:
       enabled: true
 
-sentry:
-  dsn: ${SENTRY_DSN:}
-  environment: ${SPRING_PROFILES_ACTIVE:production}
-  traces-sample-rate: 0.2
-  logging:
-    minimum-event-level: error
     minimum-breadcrumb-level: info
   in-app-includes:
     - com.lezifx.trading
