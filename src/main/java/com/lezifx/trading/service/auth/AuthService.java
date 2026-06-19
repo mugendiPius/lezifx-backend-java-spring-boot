@@ -17,6 +17,7 @@ import com.lezifx.trading.web.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -173,7 +174,14 @@ public class AuthService {
 
         User user = stored.getUser();
         log.info("Token refreshed for user: id={}", user.getId());
-        return buildLoginResponse(user);
+        try {
+            return buildLoginResponse(user);
+        } catch (DataIntegrityViolationException e) {
+            // Two tabs refreshed at the exact same second — jti claim now prevents this,
+            // but guard here so a race never returns 500.
+            throw new BusinessException("CONCURRENT_REFRESH",
+                    "Concurrent refresh detected, please retry");
+        }
     }
 
     @Transactional

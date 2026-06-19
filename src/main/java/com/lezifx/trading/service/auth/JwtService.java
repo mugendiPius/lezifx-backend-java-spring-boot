@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 public class JwtService {
@@ -44,6 +45,7 @@ public class JwtService {
         Map<String, Object> claims = new HashMap<>();
         claims.put("tenantId", user.getTenant().getId().toString());
         claims.put("type", "refresh");
+        claims.put("jti", UUID.randomUUID().toString());
 
         return Jwts.builder()
             .subject(user.getId().toString())
