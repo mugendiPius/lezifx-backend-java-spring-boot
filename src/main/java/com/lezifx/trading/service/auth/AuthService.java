@@ -137,7 +137,7 @@ public class AuthService {
 
         BigDecimal demoBalance = tenant.getDemoBalance() != null
                 ? tenant.getDemoBalance()
-                : BigDecimal.valueOf(10000);
+                : BigDecimal.valueOf(50000);
 
         Wallet wallet = Wallet.builder()
                 .user(user)

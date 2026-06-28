@@ -165,7 +165,7 @@ public class AdminUserService {
         }
 
         BigDecimal refillTo = tenant.getDemoBalance() != null
-            ? tenant.getDemoBalance() : BigDecimal.valueOf(10000);
+            ? tenant.getDemoBalance() : BigDecimal.valueOf(50000);
         BigDecimal before = wallet.getDemoBalance();
         BigDecimal refillAmount = refillTo.subtract(before);
 

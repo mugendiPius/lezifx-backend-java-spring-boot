@@ -79,7 +79,7 @@ public class TenantService {
         }
 
         BigDecimal floorBalance = req.getFloorBalance()  != null ? req.getFloorBalance()  : BigDecimal.valueOf(100_000);
-        BigDecimal demoBalance  = req.getDemoBalance()   != null ? req.getDemoBalance()   : BigDecimal.valueOf(10_000);
+        BigDecimal demoBalance  = req.getDemoBalance()   != null ? req.getDemoBalance()   : BigDecimal.valueOf(50_000);
 
         // Build allowed_origins from request  normalise each entry
         String[] origins = req.getCustomDomains() == null ? new String[0]
